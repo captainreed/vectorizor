@@ -1,0 +1,131 @@
+.axisLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 12px;
+  line-height: 1.15;
+  white-space: nowrap;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff;
+  user-select: none;
+}
+
+.axisLabel strong {
+  font-size: 13px;
+}
+
+.tooltip {
+  transform: translate(10px, -100%) translateY(-8px);
+  background: rgba(29, 35, 48, 0.92);
+  color: #fff;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.tooltipLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.tooltipDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+.tooltipCoords {
+  opacity: 0.75;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Axis key overlay */
+.key {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius);
+  box-shadow: 0 2px 10px rgba(20, 30, 50, 0.1);
+  padding: 8px 10px;
+  font-size: 12px;
+  min-width: 220px;
+  max-width: calc(100% - 24px);
+}
+
+.keyHead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.keyHead > span {
+  flex: 1;
+}
+
+.keyTable {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.keyTable th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 4px;
+}
+
+.keyTable td {
+  padding: 2px 4px;
+  white-space: nowrap;
+}
+
+.keyTable input {
+  width: 80px;
+  padding: 2px 5px;
+  font-size: 12px;
+}
+
+.chip {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.keyActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.keyActions button {
+  padding: 2px 10px;
+  font-size: 12px;
+}
+
+.pill {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(6px);
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+}

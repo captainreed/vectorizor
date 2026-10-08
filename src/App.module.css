@@ -1,0 +1,41 @@
+.app {
+  display: grid;
+  grid-template-rows: 10vh 60vh 30vh;
+  height: 100vh;
+}
+
+.tabs {
+  min-height: 0;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  position: relative;
+  z-index: 10;
+}
+
+.graph {
+  position: relative;
+  min-height: 0;
+  background: var(--graph-bg);
+  overflow: hidden;
+}
+
+.reset {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font-size: 12px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+.list {
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+}
