@@ -93,7 +93,16 @@ export function createItem(items: LineItem[]): LineItem {
   };
 }
 
-/** localStorage wrapper that coalesces rapid writes (e.g. slider drags). */
+/**
+ * Set when the draft was recovered from localStorage, where it lived before sessions existed, so
+ * the UI can point out that it hasn't been saved.
+ */
+export let restoredLegacyDraft = false;
+
+/**
+ * sessionStorage wrapper that coalesces rapid writes (e.g. slider drags). Per-tab storage means a
+ * reload keeps the working session but a fresh visit starts empty.
+ */
 function throttledStorage(delayMs = 250): StateStorage {
   const pending = new Map<string, string>();
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -101,18 +110,26 @@ function throttledStorage(delayMs = 250): StateStorage {
     timer = null;
     for (const [k, v] of pending) {
       try {
-        localStorage.setItem(k, v);
+        sessionStorage.setItem(k, v);
       } catch {
         // storage full or blocked; ignore
       }
     }
     pending.clear();
   };
+  const takeLegacy = (k: string) => {
+    const v = localStorage.getItem(k);
+    if (v !== null) {
+      localStorage.removeItem(k);
+      restoredLegacyDraft = true;
+    }
+    return v;
+  };
   if (typeof window !== 'undefined') window.addEventListener('beforeunload', flush);
   return {
     getItem: (k) => {
       try {
-        return pending.get(k) ?? localStorage.getItem(k);
+        return pending.get(k) ?? sessionStorage.getItem(k) ?? takeLegacy(k);
       } catch {
         return null;
       }
@@ -124,7 +141,7 @@ function throttledStorage(delayMs = 250): StateStorage {
     removeItem: (k) => {
       pending.delete(k);
       try {
-        localStorage.removeItem(k);
+        sessionStorage.removeItem(k);
       } catch {
         // ignore
       }
@@ -238,6 +255,14 @@ export const useStore = create<AppState>()(
     },
   ),
 );
+
+export const EMPTY_DOCUMENT: AppDocument = {
+  items: [],
+  axes: DEFAULT_AXES,
+  view: DEFAULT_VIEW,
+  modes: DEFAULT_MODES,
+  person: DEFAULT_PERSON,
+};
 
 export function getDocument(): AppDocument {
   const { items, axes, view, modes, person } = useStore.getState();

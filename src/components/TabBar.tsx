@@ -1,17 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './TabBar.module.css';
-import { getDocument, selectIsolatePlane, useStore } from '../state/store';
+import { selectIsolatePlane, useStore } from '../state/store';
 import {
-  EXPORT_VERSION,
   MODE_IDS,
   PLANE_IDS,
-  documentSchema,
-  exportFileSchema,
-  type AppDocument,
+  SESSION_NAME_MAX,
   type IsolatePlane,
   type ModeId,
   type Preset,
 } from '../state/schema';
+import {
+  DEFAULT_SESSION_NAME,
+  logout,
+  openDialog,
+  renameSession,
+  saveSession,
+  selectIsOwner,
+  setNotice,
+  useSession,
+} from '../state/session';
 import { activeCompassPlanes } from '../lib/coords';
 
 const PRESET_LABELS: Record<Preset, string> = {
@@ -68,6 +75,7 @@ export default function TabBar() {
   return (
     <div className={styles.bar} ref={barRef}>
       <div className={styles.brand}>Vectorizor</div>
+      <SessionName />
       <div className={styles.tabs}>
         <nav className={styles.tabGroup} role="tablist" aria-label="View configuration">
           <button role="tab" aria-selected={view.mode === 'free'} className={tabClass(view.mode === 'free')} onClick={() => setViewMode('free')}>
@@ -169,87 +177,132 @@ export default function TabBar() {
           )}
         </div>
       </div>
-      <ImportExport />
+      <SessionControls />
     </div>
   );
 }
 
-function ImportExport() {
-  const replaceDocument = useStore((s) => s.replaceDocument);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [pending, setPending] = useState<AppDocument | null>(null);
-  const [error, setError] = useState<string | null>(null);
+function SessionName() {
+  const name = useSession((s) => s.name);
+  const meta = useSession((s) => s.meta);
+  const dirty = useSession((s) => s.dirty);
+  const isOwner = useSession(selectIsOwner);
+  const status = !meta ? 'Not saved' : `${meta.isPublic ? 'Public' : 'Private'}${isOwner ? '' : ` · by ${meta.ownerName}`}`;
+  return (
+    <div className={styles.session}>
+      <input
+        type="text"
+        className={styles.sessionName}
+        value={name}
+        placeholder={DEFAULT_SESSION_NAME}
+        maxLength={SESSION_NAME_MAX}
+        onChange={(e) => renameSession(e.target.value)}
+        aria-label="Session name"
+      />
+      <span className={styles.sessionStatus}>
+        {status}
+        {dirty && meta && <span className={styles.unsaved}> · unsaved changes</span>}
+      </span>
+    </div>
+  );
+}
+
+function SessionControls() {
+  const user = useSession((s) => s.user);
+  const meta = useSession((s) => s.meta);
+  const dirty = useSession((s) => s.dirty);
+  const busy = useSession((s) => s.busy);
+  const notice = useSession((s) => s.notice);
+  const isOwner = useSession(selectIsOwner);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const accountRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(null), 5000);
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.kind === 'error' ? 8000 : 4000);
     return () => clearTimeout(t);
-  }, [error]);
+  }, [notice]);
 
-  const onExport = () => {
-    const payload = { app: 'vectorizor', version: EXPORT_VERSION, data: getDocument() };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `vectorizor-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
+  useEffect(() => {
+    if (!accountOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!accountRef.current?.contains(e.target as Node)) setAccountOpen(false);
+    };
+    window.addEventListener('pointerdown', onDown);
+    return () => window.removeEventListener('pointerdown', onDown);
+  }, [accountOpen]);
 
-  const onFile = async (file: File) => {
-    try {
-      const json = JSON.parse(await file.text());
-      const wrapped = exportFileSchema.safeParse(json);
-      const doc = wrapped.success ? wrapped.data.data : documentSchema.parse(json);
-      setError(null);
-      setPending(doc);
-    } catch {
-      setPending(null);
-      setError('That file is not a valid Vectorizor export.');
-    }
-  };
+  // Your own session saves in place; anything else (new, or someone else's) saves as your private copy.
+  const saveLabel = !meta || isOwner ? 'Save' : 'Save a copy';
+  const saveTitle = !meta
+    ? 'Save to your sessions (private)'
+    : isOwner
+      ? 'Save changes to this session'
+      : `Only ${meta.ownerName} can save this session; save your own private copy instead`;
 
   return (
     <div className={styles.io}>
-      {error && <span className={styles.error} role="alert">{error}</span>}
-      {pending ? (
-        <span className={styles.confirm}>
-          Replace current data with {pending.items.length} item{pending.items.length === 1 ? '' : 's'}?
-          <button
-            className="primary"
-            onClick={() => {
-              replaceDocument(pending);
-              setPending(null);
-            }}
-          >
-            Replace
-          </button>
-          <button onClick={() => setPending(null)}>Cancel</button>
+      {notice && (
+        <span
+          className={`${styles.toast} ${notice.kind === 'error' ? styles.error : ''}`}
+          role={notice.kind === 'error' ? 'alert' : 'status'}
+        >
+          {notice.text}
         </span>
-      ) : (
-        <>
-          <button onClick={() => fileRef.current?.click()} title="Load data from a JSON file">
-            ⬆ Import
-          </button>
-          <button onClick={onExport} title="Download data as JSON">
-            ⬇ Export
-          </button>
-        </>
       )}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="application/json,.json"
-        className="sr-only"
-        aria-label="Import JSON file"
-        data-testid="import-input"
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) void onFile(f);
-          e.target.value = '';
-        }}
-      />
+      <button onClick={() => openDialog('sessions')} title="Browse public and saved sessions">
+        ☰ Sessions
+      </button>
+      <button onClick={() => openDialog('share')} title="Get a link to this session">
+        🔗 Share
+      </button>
+      {user && (
+        <button
+          className={dirty || !isOwner ? 'primary' : ''}
+          disabled={busy || (isOwner && !dirty)}
+          onClick={() => void saveSession()}
+          title={saveTitle}
+        >
+          💾 {saveLabel}
+        </button>
+      )}
+      {user ? (
+        <div className={styles.menuWrap} ref={accountRef}>
+          <button
+            className={styles.account}
+            aria-haspopup="menu"
+            aria-expanded={accountOpen}
+            title={user.username}
+            onClick={() => setAccountOpen(!accountOpen)}
+          >
+            <span className={styles.accountName}>{user.username}</span> ▾
+          </button>
+          {accountOpen && (
+            <div className={`${styles.menu} ${styles.menuRight}`} role="menu">
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setAccountOpen(false);
+                  openDialog('sessions');
+                }}
+              >
+                My sessions
+              </button>
+              <button
+                role="menuitem"
+                onClick={() => {
+                  setAccountOpen(false);
+                  void logout();
+                }}
+              >
+                Log out
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <button onClick={() => openDialog('auth')}>Log in</button>
+      )}
     </div>
   );
 }

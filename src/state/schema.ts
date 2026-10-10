@@ -23,6 +23,33 @@ export const PERSON_RADIUS = 1;
 export const NAME_MAX = 24;
 export const DESCRIPTION_MAX = 500;
 export const AXIS_LABEL_MAX = 16;
+export const SESSION_NAME_MAX = 60;
+export const USERNAME_MIN = 3;
+/** Long enough for any email address. */
+export const USERNAME_MAX = 254;
+export const PASSWORD_MIN = 8;
+
+/**
+ * Usernames allow letters, numbers, and _ . - @ + so an email address works (passwords have no
+ * character limits). Returns why one is invalid, naming the first offending character, or null.
+ */
+export function usernameProblem(raw: string): string | null {
+  const name = raw.trim();
+  const bad = [...name].find((c) => !/[A-Za-z0-9_.\-@+]/.test(c));
+  if (bad !== undefined) {
+    const shown = bad === ' ' ? 'Spaces' : `"${bad}"`;
+    return `${shown} can't be used in a username. Use letters, numbers, _ . - @ + (an email address works).`;
+  }
+  if (name.length < USERNAME_MIN) return `Username must be at least ${USERNAME_MIN} characters.`;
+  if (name.length > USERNAME_MAX) return `Username must be at most ${USERNAME_MAX} characters.`;
+  return null;
+}
+
+/** How a username is shown to other people: an email address loses its domain so it isn't exposed. */
+export function publicName(username: string): string {
+  const at = username.indexOf('@');
+  return at > 0 ? username.slice(0, at) : username;
+}
 
 export type AxisId = (typeof AXIS_IDS)[number];
 export type DiagonalId = (typeof DIAGONAL_IDS)[number];
@@ -146,11 +173,23 @@ export const documentSchema = z.object({
 /** Version 2: one value per axis. Version 1 files (per-plane points) are migrated on import. */
 export const EXPORT_VERSION = 2;
 
+/**
+ * A Vectorizor Session: everything needed to re-create one (key labels, line items, and the view
+ * they were last shown in). Exports, imports and saved sessions all use this shape.
+ */
 export const exportFileSchema = z.object({
   app: z.literal('vectorizor'),
   version: z.union([z.literal(1), z.literal(EXPORT_VERSION)]),
+  /** Added with saved sessions; older exports have no name. */
+  name: z.string().max(SESSION_NAME_MAX).optional(),
   data: documentSchema,
 });
+
+export type SessionFile = z.infer<typeof exportFileSchema>;
+
+export function toSessionFile(name: string, data: AppDocument): SessionFile {
+  return { app: 'vectorizor', version: EXPORT_VERSION, name, data };
+}
 
 export type PlanePoint = { a: number; b: number };
 export type LineItem = z.infer<typeof lineItemSchema>;

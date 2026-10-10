@@ -1,12 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-test('add item, move slider, switch tabs, persist across reload', async ({ page }) => {
+test('add item, move slider, switch tabs, keep the working session across reload', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
   await page.goto('/');
-  await page.evaluate(() => localStorage.clear());
+  await page.evaluate(() => sessionStorage.clear());
   await page.reload();
 
   await page.getByRole('button', { name: /add new item/i }).click();

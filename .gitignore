@@ -13,6 +13,9 @@ blob-report
 playwright/.cache
 coverage
 
+# Local database (accounts and saved sessions)
+/data
+
 # Environment
 .env
 .env.*

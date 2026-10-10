@@ -1,0 +1,271 @@
+/* Modal */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(20, 30, 50, 0.35);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 10vh 16px 16px;
+}
+
+.panel {
+  width: 100%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(20, 30, 50, 0.25);
+  outline: none;
+}
+
+.wide {
+  max-width: 640px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 8px 16px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.body {
+  padding: 0 16px 16px;
+}
+
+.body p {
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.body .hint {
+  margin-top: -4px;
+}
+
+.link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.link:hover {
+  background: none;
+}
+
+/* Log in form */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field label {
+  font-weight: 500;
+}
+
+.form .hint {
+  margin: 0;
+}
+
+.fieldError {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.form input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.formError {
+  margin: 0;
+  color: var(--danger);
+}
+
+/* Share */
+.copyRow {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.copyRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Sessions list */
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px 12px;
+}
+
+.segmented {
+  display: flex;
+  gap: 4px;
+}
+
+.segmented button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.segmented button[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: #c8d8fa;
+}
+
+.listWrap {
+  overflow-y: auto;
+  min-height: 120px;
+  padding: 0 16px 12px;
+}
+
+.empty {
+  color: var(--muted);
+  text-align: center;
+  margin: 32px 0;
+}
+
+.sessionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sessionList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+.sessionList li + li {
+  border-top: 1px solid var(--border);
+}
+
+.sessionList li.current {
+  background: var(--accent-soft);
+}
+
+.sessionInfo {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.sessionName {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionMeta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.rowActions button {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+
+.publicToggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+.footer {
+  margin: 0;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 520px) {
+  .sessionList li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowActions {
+    justify-content: flex-end;
+  }
+}
+
+/* Import / Export, at the foot of the Sessions dialog */
+.io {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.ioLabel {
+  color: var(--muted);
+  margin-right: auto;
+}
+
+.confirm {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.io .formError {
+  flex-basis: 100%;
+}
