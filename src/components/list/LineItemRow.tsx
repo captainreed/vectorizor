@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './List.module.css';
 import { useStore } from '../../state/store';
-import { DESCRIPTION_MAX, NAME_MAX, PLANE_IDS, type LineItem } from '../../state/schema';
+import { DESCRIPTION_MAX, DIAGONAL_IDS, NAME_MAX, PLANE_IDS, type LineItem } from '../../state/schema';
 import { formatCoords, formatPoint, resultant } from '../../lib/coords';
 import SliderGrid from './SliderGrid';
 
@@ -20,6 +20,7 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
   const updateItem = useStore((s) => s.updateItem);
   const deleteItem = useStore((s) => s.deleteItem);
   const single = useStore((s) => s.modes.single);
+  const compass = useStore((s) => s.modes.compass);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hexDraft, setHexDraft] = useState(item.color);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -85,7 +86,8 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
                 {formatPoint(item.points[p])}
               </span>
             ))}
-            {single && <span className={styles.resultant}>XYZ{formatCoords(resultant(item.points))}</span>}
+            {compass && <span>Diag{formatCoords(DIAGONAL_IDS.map((d) => item.diagonals[d]))}</span>}
+            {single && <span className={styles.resultant}>XYZ{formatCoords(resultant(item, compass))}</span>}
           </span>
         )}
         <span className={styles.spacer} />

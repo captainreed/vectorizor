@@ -1,13 +1,14 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import ListSection from '../src/components/list/ListSection';
 import { useStore } from '../src/state/store';
-import { DEFAULT_AXES, DEFAULT_VIEW } from '../src/state/schema';
+import { DEFAULT_AXES, DEFAULT_MODES, DEFAULT_VIEW } from '../src/state/schema';
 
 beforeEach(() =>
   useStore.setState({
     items: [],
     axes: DEFAULT_AXES,
     view: DEFAULT_VIEW,
+    modes: DEFAULT_MODES,
     ui: { expandedId: null, selectedId: null, keyEditing: false, cameraNonce: 0 },
   }),
 );
@@ -44,5 +45,20 @@ describe('list section', () => {
     expect(useStore.getState().items).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Yes' }));
     expect(useStore.getState().items).toHaveLength(0);
+  });
+});
+
+describe('compass sliders', () => {
+  it('shows 4 diagonal sliders only with Compass on, and updates the store', () => {
+    useStore.getState().addItem();
+    const { rerender } = render(<ListSection />);
+    expect(screen.getAllByRole('slider')).toHaveLength(6);
+
+    act(() => useStore.getState().toggleMode('compass'));
+    rerender(<ListSection />);
+    expect(screen.getAllByRole('slider')).toHaveLength(10);
+
+    fireEvent.change(screen.getByLabelText('Diagonal Up-NE'), { target: { value: '-3' } });
+    expect(useStore.getState().items[0].diagonals.une).toBe(-3);
   });
 });

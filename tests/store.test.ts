@@ -1,4 +1,4 @@
-import { getDocument, selectAxisGap, selectGridSteps, useStore } from '../src/state/store';
+import { getDocument, selectAxisGap, selectGridSteps, selectIsolatePlane, useStore } from '../src/state/store';
 import {
   DEFAULT_AXES,
   DEFAULT_MODES,
@@ -99,7 +99,7 @@ describe('schema', () => {
 
 describe('modes', () => {
   it('are all off by default and toggle independently of the view', () => {
-    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false, compass: false });
     expect(selectAxisGap(useStore.getState())).toBe(0);
 
     useStore.getState().toggleMode('person');
@@ -129,7 +129,7 @@ describe('modes', () => {
 
     const legacy = { items: [], axes: DEFAULT_AXES, view: DEFAULT_VIEW };
     const parsed = documentSchema.parse(legacy);
-    expect(parsed.modes).toEqual({ person: false, push: false, single: false });
+    expect(parsed.modes).toEqual({ person: false, push: false, single: false, compass: false });
     expect(parsed.person).toEqual({ position: [0, 0, 0] });
   });
 });
@@ -137,25 +137,82 @@ describe('modes', () => {
 describe('push mode', () => {
   it('turning Push on also turns on Person', () => {
     useStore.getState().toggleMode('push');
-    expect(useStore.getState().modes).toEqual({ person: true, push: true, single: false });
+    expect(useStore.getState().modes).toEqual({ person: true, push: true, single: false, compass: false });
   });
 
   it('turning Person off also turns off Push; turning Push off leaves Person on', () => {
     useStore.getState().toggleMode('push');
     useStore.getState().toggleMode('person');
-    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false, compass: false });
 
     useStore.getState().toggleMode('push');
     useStore.getState().toggleMode('push');
-    expect(useStore.getState().modes).toEqual({ person: true, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: true, push: false, single: false, compass: false });
   });
 });
 
 describe('single mode', () => {
-  it('is independent of other modes and doubles the grid range', () => {
-    expect(selectGridSteps(useStore.getState())).toBe(5);
+  it('is independent of other modes and sizes the grid to fit the resultants', () => {
+    const id = useStore.getState().addItem();
+    useStore.getState().setPoint(id, 'xy', 'a', 4);
+    useStore.getState().setPoint(id, 'xz', 'a', 4); // X resultant = 8
+    expect(selectGridSteps(useStore.getState())).toBe(5); // Single off: default grid
     useStore.getState().toggleMode('single');
-    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: true });
+    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: true, compass: false });
     expect(selectGridSteps(useStore.getState())).toBe(10);
+
+    useStore.getState().setPoint(id, 'xz', 'a', 1); // X resultant = 5: fits the default grid
+    expect(selectGridSteps(useStore.getState())).toBe(5);
+
+    useStore.getState().toggleVisible(id); // hidden items don't count
+    useStore.getState().setPoint(id, 'xz', 'a', 5);
+    expect(selectGridSteps(useStore.getState())).toBe(5);
+  });
+});
+
+describe('compass mode', () => {
+  it('stores diagonal values per item, clamped to -5..5 integers', () => {
+    const id = useStore.getState().addItem();
+    expect(useStore.getState().items[0].diagonals).toEqual({ ne: 0, nw: 0, une: 0, unw: 0 });
+    useStore.getState().setDiagonal(id, 'ne', 3);
+    useStore.getState().setDiagonal(id, 'unw', -9);
+    expect(useStore.getState().items[0].diagonals).toEqual({ ne: 3, nw: 0, une: 0, unw: -5 });
+  });
+
+  it('diagonals count toward the Single grid size only when Compass is on', () => {
+    const id = useStore.getState().addItem();
+    useStore.getState().setDiagonal(id, 'une', 5);
+    useStore.getState().setDiagonal(id, 'unw', 5);
+    useStore.getState().toggleMode('single');
+    expect(selectGridSteps(useStore.getState())).toBe(5); // all-zero plane points
+    useStore.getState().toggleMode('compass');
+    // Up-NE + Up-NW at 5: Y = 5·(√½ + √½) ≈ 7.07, Z = 2.5 + 2.5 = 5 → ±10 grid.
+    expect(selectGridSteps(useStore.getState())).toBe(10);
+    // All four at 5: Z ≈ 12.07 → ±15.
+    useStore.getState().setDiagonal(id, 'ne', 5);
+    useStore.getState().setDiagonal(id, 'nw', 5);
+    expect(selectGridSteps(useStore.getState())).toBe(15);
+  });
+
+  it('falls back to isolating XY if a Compass plane is selected while Compass is off', () => {
+    useStore.getState().setIsolatePlane('ne-y');
+    expect(selectIsolatePlane(useStore.getState())).toBe('xy');
+    useStore.getState().toggleMode('compass');
+    expect(selectIsolatePlane(useStore.getState())).toBe('ne-y');
+  });
+
+  it('older documents without diagonals or diagonal labels still load', () => {
+    const legacyItem = {
+      id: 'a',
+      name: 'Old',
+      color: '#123456',
+      description: '',
+      visible: true,
+      points: { xy: { a: 1, b: 2 }, xz: { a: 0, b: 0 }, yz: { a: 0, b: 0 } },
+    };
+    const { x, y, z } = DEFAULT_AXES;
+    const parsed = documentSchema.parse({ items: [legacyItem], axes: { x, y, z }, view: DEFAULT_VIEW });
+    expect(parsed.items[0].diagonals).toEqual({ ne: 0, nw: 0, une: 0, unw: 0 });
+    expect(parsed.axes.ne).toEqual({ name: 'NE', negLabel: '−NE', posLabel: '+NE' });
   });
 });

@@ -1,8 +1,7 @@
 import { Line } from '@react-three/drei';
 import { Quaternion, Vector3 } from 'three';
 import { useStore } from '../../state/store';
-import type { PlaneId } from '../../state/schema';
-import { itemMarkers, pushArrow, stepsToWorld, type Vec3 } from '../../lib/coords';
+import { itemMarkers, pushArrow, type MarkerOptions, type Vec3 } from '../../lib/coords';
 import { DOT_RADIUS } from './PointDots';
 
 const HEAD_LEN = 0.42;
@@ -16,23 +15,14 @@ export interface PushTarget {
 }
 
 /**
- * One arrow per item marker: per displayed plane, or a single 3D resultant in Single mode.
+ * One arrow per item marker: per displayed plane and Compass diagonal, or a single 3D resultant
+ * in Single mode.
  * - Default: from the origin to the marker's point.
  * - Push (`push` set): the same vector slid back along its own direction until its tip touches the
  *   outside of the sphere, so it reads as a force of that magnitude pushing on the sphere. The
  *   length is the raw slider magnitude (unaffected by the Person-mode gap).
  */
-export default function Vectors({
-  planes,
-  gap,
-  single,
-  push,
-}: {
-  planes: PlaneId[];
-  gap: number;
-  single: boolean;
-  push?: PushTarget | null;
-}) {
+export default function Vectors({ options, push }: { options: MarkerOptions; push?: PushTarget | null }) {
   const items = useStore((s) => s.items);
 
   return (
@@ -40,7 +30,7 @@ export default function Vectors({
       {items
         .filter((i) => i.visible)
         .map((item) =>
-          itemMarkers(item, planes, single).map((marker) => {
+          itemMarkers(item, options).map((marker) => {
             const key = `${item.id}-${marker.id}`;
             if (push) {
               const arrow = pushArrow(marker.steps, push.center, push.radius);
@@ -49,7 +39,7 @@ export default function Vectors({
                 <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />
               );
             }
-            const point = new Vector3(...stepsToWorld(marker.steps, gap));
+            const point = new Vector3(...marker.world);
             const len = point.length();
             if (len < 1e-6) return null; // zero-length vector: just the dot at the origin
             // Stop just short of the dot's center so the head stays visible.

@@ -3,14 +3,15 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../state/store';
-import { STEP_MAX, type PlaneId, type Preset } from '../../state/schema';
-import type { Vec3 } from '../../lib/coords';
+import { STEP_MAX, type IsolatePlane, type Preset } from '../../state/schema';
+import { AXIS_DIR, PLANE_BASIS, planeNormal, type Vec3 } from '../../lib/coords';
 
 const PRESET_POSES: Record<Preset, Vec3> = {
   front: [0, 0, 17],
   top: [0, 17, 0.001],
   side: [17, 0, 0],
-  iso: [11, 8, 11],
+  // Deliberately off the X=Z diagonal so the Compass NE axis isn't pointing straight at the camera.
+  iso: [14, 8, 7],
 };
 
 const ANIM_MS = 400;
@@ -75,23 +76,22 @@ export function PerspectiveCameraRig({ extent }: { extent: number }) {
   return null;
 }
 
-const ISO_POSE: Record<PlaneId, { position: Vec3; up: Vec3 }> = {
-  xy: { position: [0, 0, 20], up: [0, 1, 0] },
-  xz: { position: [0, -20, 0], up: [0, 0, 1] }, // X right, Z up
-  yz: { position: [20, 0, 0], up: [0, 0, 1] }, // Y right, Z up
-};
-
-/** Points the orthographic camera straight at the isolated plane and fits it to the viewport. */
-export function IsolateCameraRig({ plane, extent }: { plane: PlaneId; extent: number }) {
+/**
+ * Points the orthographic camera straight at the isolated plane and fits it to the viewport.
+ * The camera sits on the plane's normal with the plane's second axis up, so the first axis reads
+ * left→right (e.g. XZ: X right, Z up; NE–Y: NE right, Y up).
+ */
+export function IsolateCameraRig({ plane, extent }: { plane: IsolatePlane; extent: number }) {
   const camera = useThree((s) => s.camera) as OrthographicCamera;
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const size = useThree((s) => s.size);
   const nonce = useStore((s) => s.ui.cameraNonce);
 
   useEffect(() => {
-    const pose = ISO_POSE[plane];
-    camera.up.set(...pose.up);
-    camera.position.set(...pose.position);
+    // Far enough back that nothing off-plane (Single mode resultants) is behind the camera.
+    const distance = Math.max(20, extent * 2 + 10);
+    camera.up.set(...AXIS_DIR[PLANE_BASIS[plane][1]]);
+    camera.position.set(...planeNormal(plane)).multiplyScalar(distance);
     // Fit the grid plus ~2 units of margin for the axis labels.
     camera.zoom = Math.max(4, Math.min(size.width, size.height) / (2 * (extent + 2)));
     camera.lookAt(0, 0, 0);

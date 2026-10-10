@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './TabBar.module.css';
-import { getDocument, useStore } from '../state/store';
+import { getDocument, selectIsolatePlane, useStore } from '../state/store';
 import {
+  ISOLATE_PLANES,
   MODE_IDS,
+  PLANE_IDS,
   documentSchema,
   exportFileSchema,
   type AppDocument,
+  type IsolatePlane,
   type ModeId,
-  type PlaneId,
   type Preset,
 } from '../state/schema';
 
@@ -18,14 +20,15 @@ const PRESET_LABELS: Record<Preset, string> = {
   iso: 'Isometric',
 };
 
-const PLANE_LABELS: Record<PlaneId, string> = { xy: 'XY plane', xz: 'XZ plane', yz: 'YZ plane' };
+const PLANE_SHORT: Record<IsolatePlane, string> = { xy: 'XY', xz: 'XZ', yz: 'YZ', 'ne-y': 'NE–Y', 'nw-y': 'NW–Y' };
 
-const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single' };
+const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single', compass: 'Compass' };
 
 const MODE_HINTS: Record<ModeId, string> = {
   person: 'Show a person sphere at the center',
   push: 'Draw each vector as a force pushing on the person sphere (turns on Person)',
   single: "Combine each item's three plane vectors into one 3D vector (their sum)",
+  compass: 'Add 4 diagonal axes (NE, NW, Up-NE, Up-NW) and two planes at 45°',
 };
 
 type MenuId = 'preset' | 'isolate' | 'modes' | null;
@@ -38,6 +41,8 @@ export default function TabBar() {
   const modes = useStore((s) => s.modes);
   const toggleMode = useStore((s) => s.toggleMode);
   const modesOn = MODE_IDS.filter((m) => modes[m]).length;
+  const isolatePlane = useStore(selectIsolatePlane);
+  const isolateChoices = modes.compass ? ISOLATE_PLANES : PLANE_IDS;
   const [menu, setMenu] = useState<MenuId>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -109,22 +114,22 @@ export default function TabBar() {
               className={tabClass(view.mode === 'isolate')}
               onClick={() => setMenu(menu === 'isolate' ? null : 'isolate')}
             >
-              Isolate{view.mode === 'isolate' ? `: ${view.isolatePlane.toUpperCase()}` : ''} ▾
+              Isolate{view.mode === 'isolate' ? `: ${PLANE_SHORT[isolatePlane]}` : ''} ▾
             </button>
             {menu === 'isolate' && (
               <div className={styles.menu} role="menu">
-                {(Object.keys(PLANE_LABELS) as PlaneId[]).map((p) => (
+                {isolateChoices.map((p) => (
                   <button
                     key={p}
                     role="menuitemradio"
-                    aria-checked={view.mode === 'isolate' && view.isolatePlane === p}
-                    className={view.mode === 'isolate' && view.isolatePlane === p ? styles.checked : ''}
+                    aria-checked={view.mode === 'isolate' && isolatePlane === p}
+                    className={view.mode === 'isolate' && isolatePlane === p ? styles.checked : ''}
                     onClick={() => {
                       setIsolatePlane(p);
                       setMenu(null);
                     }}
                   >
-                    {PLANE_LABELS[p]}
+                    {PLANE_SHORT[p]} plane
                   </button>
                 ))}
               </div>

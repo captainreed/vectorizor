@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import {
   DEFAULT_AXES,
+  DEFAULT_DIAGONALS,
   DEFAULT_MODES,
   DEFAULT_PERSON,
   DEFAULT_VIEW,
@@ -9,13 +10,16 @@ import {
   MODE_REQUIRES,
   PALETTE,
   PERSON_RADIUS,
+  PLANE_IDS,
   STEP_MAX,
   clampStep,
   documentSchema,
+  type AnyAxisId,
   type AppDocument,
-  type AxisId,
   type AxisLabel,
   type Axes,
+  type DiagonalId,
+  type IsolatePlane,
   type LineItem,
   type ModeId,
   type Person,
@@ -23,6 +27,8 @@ import {
   type Preset,
   type ViewMode,
 } from './schema';
+
+import { resultant } from '../lib/coords';
 
 export const STORAGE_KEY = 'vectorizor:v1';
 
@@ -38,6 +44,7 @@ interface Actions {
   addItem: () => string;
   updateItem: (id: string, patch: Partial<Pick<LineItem, 'name' | 'color' | 'description'>>) => void;
   setPoint: (id: string, plane: PlaneId, key: 'a' | 'b', value: number) => void;
+  setDiagonal: (id: string, axis: DiagonalId, value: number) => void;
   toggleVisible: (id: string) => void;
   deleteItem: (id: string) => void;
   /** Expand a row (or collapse with null). Expanding also selects. */
@@ -45,11 +52,11 @@ interface Actions {
   /** Select from the graph: highlights and expands the row; null clears selection. */
   select: (id: string | null) => void;
   setAxes: (axes: Axes) => void;
-  setAxisLabel: (axis: AxisId, patch: Partial<AxisLabel>) => void;
+  setAxisLabel: (axis: AnyAxisId, patch: Partial<AxisLabel>) => void;
   setKeyEditing: (editing: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
   setPreset: (preset: Preset) => void;
-  setIsolatePlane: (plane: PlaneId) => void;
+  setIsolatePlane: (plane: IsolatePlane) => void;
   resetCamera: () => void;
   toggleMode: (mode: ModeId) => void;
   setPersonPosition: (position: Person['position']) => void;
@@ -85,6 +92,7 @@ export function createItem(items: LineItem[]): LineItem {
     description: '',
     visible: true,
     points: { xy: { a: 0, b: 0 }, xz: { a: 0, b: 0 }, yz: { a: 0, b: 0 } },
+    diagonals: DEFAULT_DIAGONALS,
   };
 }
 
@@ -155,6 +163,13 @@ export const useStore = create<AppState>()(
             i.id === id
               ? { ...i, points: { ...i.points, [plane]: { ...i.points[plane], [key]: clampStep(value) } } }
               : i,
+          ),
+        })),
+
+      setDiagonal: (id, axis, value) =>
+        set((s) => ({
+          items: s.items.map((i) =>
+            i.id === id ? { ...i, diagonals: { ...i.diagonals, [axis]: clampStep(value) } } : i,
           ),
         })),
 
@@ -243,5 +258,20 @@ export function getDocument(): AppDocument {
 /** World-space gap between the origin and step ±1: room for the person sphere when it's shown. */
 export const selectAxisGap = (s: AppState): number => (s.modes.person ? PERSON_RADIUS : 0);
 
-/** Grid half-size in steps: Single mode sums two values per axis, so it doubles the range. */
-export const selectGridSteps = (s: AppState): number => (s.modes.single ? STEP_MAX * 2 : STEP_MAX);
+/**
+ * Grid half-size in steps. Single mode's resultants can reach ±10 (±~22 with Compass), so the grid
+ * grows to fit the largest visible one, in multiples of 5 and never below the default ±5.
+ */
+export const selectGridSteps = (s: AppState): number => {
+  if (!s.modes.single) return STEP_MAX;
+  const largest = Math.max(
+    0,
+    ...s.items.filter((i) => i.visible).flatMap((i) => resultant(i, s.modes.compass).map(Math.abs)),
+  );
+  // Small epsilon so float noise (e.g. 10.0000000001) doesn't bump the grid up a size.
+  return Math.max(STEP_MAX, Math.ceil(largest / STEP_MAX - 1e-9) * STEP_MAX);
+};
+
+/** The isolated plane, falling back to XY if a Compass plane is selected while Compass is off. */
+export const selectIsolatePlane = (s: AppState): IsolatePlane =>
+  s.modes.compass || (PLANE_IDS as readonly string[]).includes(s.view.isolatePlane) ? s.view.isolatePlane : 'xy';

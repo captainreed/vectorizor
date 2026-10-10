@@ -1,11 +1,21 @@
 import styles from './List.module.css';
 import { useStore } from '../../state/store';
-import { PLANE_IDS, STEP_MAX, STEP_MIN, type AxisId, type LineItem, type PlaneId } from '../../state/schema';
-import { AXIS_COLORS, PLANE_AXES } from '../../lib/coords';
+import { PLANE_IDS, STEP_MAX, STEP_MIN, type AnyAxisId, type DiagonalId, type LineItem } from '../../state/schema';
+import { AXIS_COLORS, DIAGONAL_SHORT, PLANE_AXES } from '../../lib/coords';
 
 const TICKS = Array.from({ length: STEP_MAX - STEP_MIN + 1 }, (_, i) => STEP_MIN + i);
 
+/** Compass sliders, laid out as floor diagonals then up-diagonals. */
+const DIAGONAL_ROWS: [DiagonalId, DiagonalId][] = [
+  ['ne', 'nw'],
+  ['une', 'unw'],
+];
+
 export default function SliderGrid({ item }: { item: LineItem }) {
+  const compass = useStore((s) => s.modes.compass);
+  const setPoint = useStore((s) => s.setPoint);
+  const setDiagonal = useStore((s) => s.setDiagonal);
+
   return (
     <div className={styles.sliders} aria-label="Point position sliders">
       <datalist id="vz-ticks">
@@ -16,19 +26,57 @@ export default function SliderGrid({ item }: { item: LineItem }) {
       {PLANE_IDS.map((plane) => (
         <div key={plane} className={styles.planeRow}>
           <span className={styles.planeLabel}>{plane.toUpperCase()}</span>
-          <AxisSlider item={item} plane={plane} slot="a" />
-          <AxisSlider item={item} plane={plane} slot="b" />
+          {(['a', 'b'] as const).map((slot, i) => (
+            <AxisSlider
+              key={slot}
+              axisId={PLANE_AXES[plane][i]}
+              value={item.points[plane][slot]}
+              color={item.color}
+              label={(name) => `${plane.toUpperCase()} plane ${name}`}
+              onChange={(v) => setPoint(item.id, plane, slot, v)}
+            />
+          ))}
         </div>
       ))}
+      {compass && (
+        <>
+          <div className={styles.sliderSection}>Diagonals</div>
+          {DIAGONAL_ROWS.map((row) => (
+            <div key={row.join('-')} className={styles.planeRow}>
+              <span className={styles.planeLabel} />
+              {row.map((d) => (
+                <AxisSlider
+                  key={d}
+                  axisId={d}
+                  value={item.diagonals[d]}
+                  color={item.color}
+                  label={() => `Diagonal ${DIAGONAL_SHORT[d]}`}
+                  onChange={(v) => setDiagonal(item.id, d, v)}
+                />
+              ))}
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
 
-function AxisSlider({ item, plane, slot }: { item: LineItem; plane: PlaneId; slot: 'a' | 'b' }) {
-  const axisId: AxisId = PLANE_AXES[plane][slot === 'a' ? 0 : 1];
+function AxisSlider({
+  axisId,
+  value,
+  color,
+  label,
+  onChange,
+}: {
+  axisId: AnyAxisId;
+  value: number;
+  color: string;
+  /** Accessible label, given the axis's current (user-editable) name. */
+  label: (axisName: string) => string;
+  onChange: (value: number) => void;
+}) {
   const axis = useStore((s) => s.axes[axisId]);
-  const setPoint = useStore((s) => s.setPoint);
-  const value = item.points[plane][slot];
 
   return (
     <div className={styles.slider}>
@@ -44,10 +92,10 @@ function AxisSlider({ item, plane, slot }: { item: LineItem; plane: PlaneId; slo
         step={1}
         list="vz-ticks"
         value={value}
-        aria-label={`${plane.toUpperCase()} plane ${axis.name}`}
+        aria-label={label(axis.name)}
         aria-valuetext={`${value}`}
-        style={{ accentColor: item.color }}
-        onChange={(e) => setPoint(item.id, plane, slot, Number(e.target.value))}
+        style={{ accentColor: color }}
+        onChange={(e) => onChange(Number(e.target.value))}
       />
       <div className={styles.ends}>
         <span>{axis.negLabel}</span>

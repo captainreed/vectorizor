@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import styles from './Graph.module.css';
 import { useStore } from '../../state/store';
-import { AXIS_IDS, AXIS_LABEL_MAX, DEFAULT_AXES, type AxisLabel, type Axes } from '../../state/schema';
+import { ALL_AXIS_IDS, AXIS_IDS, AXIS_LABEL_MAX, DEFAULT_AXES, type AxisLabel, type Axes } from '../../state/schema';
 import { AXIS_COLORS } from '../../lib/coords';
 
 const FIELDS: { key: keyof AxisLabel; label: string }[] = [
@@ -17,8 +17,10 @@ export default function AxisKey() {
   const setKeyEditing = useStore((s) => s.setKeyEditing);
   const setAxisLabel = useStore((s) => s.setAxisLabel);
   const setAxes = useStore((s) => s.setAxes);
+  const compass = useStore((s) => s.modes.compass);
   const [collapsed, setCollapsed] = useState(false);
   const snapshot = useRef<Axes | null>(null);
+  const shownIds = compass ? ALL_AXIS_IDS : AXIS_IDS;
 
   if (collapsed) {
     return (
@@ -34,9 +36,9 @@ export default function AxisKey() {
   };
 
   const done = () => {
-    // Blank labels fall back to defaults.
+    // Blank labels fall back to defaults (hidden Compass labels are kept as-is).
     const cleaned = Object.fromEntries(
-      AXIS_IDS.map((id) => [
+      ALL_AXIS_IDS.map((id) => [
         id,
         Object.fromEntries(FIELDS.map(({ key }) => [key, axes[id][key].trim() || DEFAULT_AXES[id][key]])),
       ]),
@@ -81,7 +83,7 @@ export default function AxisKey() {
           </tr>
         </thead>
         <tbody>
-          {AXIS_IDS.map((id) => (
+          {shownIds.map((id) => (
             <tr key={id}>
               {FIELDS.map(({ key }, col) => (
                 <td key={key}>
@@ -91,7 +93,7 @@ export default function AxisKey() {
                       type="text"
                       value={axes[id][key]}
                       maxLength={AXIS_LABEL_MAX}
-                      aria-label={`${id.toUpperCase()} axis ${key === 'name' ? 'name' : key === 'negLabel' ? 'negative end label' : 'positive end label'}`}
+                      aria-label={`${DEFAULT_AXES[id].name.toUpperCase()} axis ${key === 'name' ? 'name' : key === 'negLabel' ? 'negative end label' : 'positive end label'}`}
                       autoFocus={id === 'x' && col === 0}
                       onChange={(e) => setAxisLabel(id, { [key]: e.target.value })}
                     />

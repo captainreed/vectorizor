@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { Billboard, Html } from '@react-three/drei';
 import { DoubleSide } from 'three';
 import { useStore } from '../../state/store';
-import type { PlaneId } from '../../state/schema';
-import { itemMarkers, stepsToWorld, type Marker, type Vec3 } from '../../lib/coords';
+import { itemMarkers, type Marker, type MarkerOptions, type Vec3 } from '../../lib/coords';
 import styles from './Graph.module.css';
 
 export const DOT_RADIUS = 0.18;
@@ -15,8 +14,11 @@ interface Hover {
 
 const sameSteps = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 
-/** Colored spheres for each visible item's markers: one per displayed plane, or one 3D point in Single mode. */
-export default function PointDots({ planes, gap, single }: { planes: PlaneId[]; gap: number; single: boolean }) {
+/**
+ * Colored spheres for each visible item's markers: one per displayed plane and Compass diagonal,
+ * or one 3D point in Single mode.
+ */
+export default function PointDots({ options }: { options: MarkerOptions }) {
   const items = useStore((s) => s.items);
   const selectedId = useStore((s) => s.ui.selectedId);
   const select = useStore((s) => s.select);
@@ -24,7 +26,7 @@ export default function PointDots({ planes, gap, single }: { planes: PlaneId[]; 
 
   const visible = items
     .filter((i) => i.visible)
-    .map((item) => ({ item, markers: itemMarkers(item, planes, single) }));
+    .map((item) => ({ item, markers: itemMarkers(item, options) }));
 
   useEffect(() => {
     document.body.style.cursor = hover ? 'pointer' : '';
@@ -44,7 +46,7 @@ export default function PointDots({ planes, gap, single }: { planes: PlaneId[]; 
       markers.some((m) => m.id === hover.markerId && sameSteps(m.steps, hoverMarker.steps)),
     );
     tooltip = {
-      position: stepsToWorld(hoverMarker.steps, gap),
+      position: hoverMarker.world,
       lines: sameSpot.map(({ item }) => ({ name: item.name || 'Untitled', color: item.color })),
       coords: hoverMarker.label,
     };
@@ -56,7 +58,7 @@ export default function PointDots({ planes, gap, single }: { planes: PlaneId[]; 
         markers.map((marker) => {
           const isSelected = item.id === selectedId;
           return (
-            <group key={`${item.id}-${marker.id}`} position={stepsToWorld(marker.steps, gap)}>
+            <group key={`${item.id}-${marker.id}`} position={marker.world}>
               <mesh
                 onPointerOver={(e) => {
                   e.stopPropagation();
