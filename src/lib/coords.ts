@@ -1,9 +1,11 @@
 import {
-  DIAGONAL_IDS,
+  ALL_AXIS_IDS,
+  DIAGONAL_PLANE_IDS,
   STEP_MAX,
   type AnyAxisId,
   type AxisId,
   type DiagonalId,
+  type DiagonalPlaneId,
   type IsolatePlane,
   type LineItem,
   type PlaneId,
@@ -12,7 +14,7 @@ import {
 
 export type Vec3 = [number, number, number];
 
-/** The two axes each plane spans, in slider order (a, b). */
+/** The two axes each main plane spans. */
 export const PLANE_AXES: Record<PlaneId, [AxisId, AxisId]> = {
   xy: ['x', 'y'],
   xz: ['x', 'z'],
@@ -60,8 +62,16 @@ export const AXIS_DIR: Record<AnyAxisId, Vec3> = {
   unw: [-0.5, H, 0.5], // between +Y and +NW
 };
 
-/** Short names used in tooltips and summaries. */
-export const DIAGONAL_SHORT: Record<DiagonalId, string> = { ne: 'NE', nw: 'NW', une: 'Up-NE', unw: 'Up-NW' };
+/** Fixed short names (not the user-editable labels), used in tooltips and accessible labels. */
+export const AXIS_SHORT: Record<AnyAxisId, string> = {
+  x: 'X',
+  y: 'Y',
+  z: 'Z',
+  ne: 'NE',
+  nw: 'NW',
+  une: 'Up-NE',
+  unw: 'Up-NW',
+};
 
 const scale = (v: Vec3, k: number): Vec3 => [v[0] * k, v[1] * k, v[2] * k];
 const add = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -108,62 +118,84 @@ export function planePointTo3D(plane: IsolatePlane, p: PlanePoint, gap = 0): Vec
   return add(scale(AXIS_DIR[u], stepToWorld(p.a, gap)), scale(AXIS_DIR[v], stepToWorld(p.b, gap)));
 }
 
-/**
- * Single mode: the sum of an item's plane vectors (each axis −10..10), plus with Compass each
- * diagonal value along its direction. In step units; may be fractional with Compass.
- */
-export function resultant(item: Pick<LineItem, 'points' | 'diagonals'>, compass = false): Vec3 {
-  const { points } = item;
-  let sum: Vec3 = [points.xy.a + points.xz.a, points.xy.b + points.yz.a, points.xz.b + points.yz.b];
-  if (compass) for (const d of DIAGONAL_IDS) sum = add(sum, scale(AXIS_DIR[d], item.diagonals[d]));
-  return sum;
+/** The two diagonals lying in each compass plane; the plane is shown while either is in use. */
+export const COMPASS_PLANE_AXES: Record<DiagonalPlaneId, [DiagonalId, DiagonalId]> = {
+  'ne-y': ['ne', 'une'],
+  'nw-y': ['nw', 'unw'],
+};
+
+/** Compass planes in use: some visible item has a non-zero value on one of their diagonals. */
+export function activeCompassPlanes(items: readonly LineItem[]): DiagonalPlaneId[] {
+  return DIAGONAL_PLANE_IDS.filter((plane) =>
+    items.some((i) => i.visible && COMPASS_PLANE_AXES[plane].some((d) => i.values[d] !== 0)),
+  );
 }
 
-/** Something drawn for an item: a plane point, a diagonal value, or (Single mode) its 3D resultant. */
+/**
+ * Single mode: the sum of the item's per-axis vectors (each value along its axis direction).
+ * In step units; fractional when diagonals are involved.
+ */
+export function resultant(item: Pick<LineItem, 'values'>): Vec3 {
+  return ALL_AXIS_IDS.reduce<Vec3>((sum, axis) => add(sum, scale(AXIS_DIR[axis], item.values[axis])), [0, 0, 0]);
+}
+
+/** Something drawn for an item: one axis value, or (Single mode) its 3D resultant. */
 export interface Marker {
-  id: PlaneId | DiagonalId | 'xyz';
+  id: AnyAxisId | 'sum';
   /** Raw vector in step units, before any Person-mode gap; used for sums and Push forces. */
   steps: Vec3;
   /** Where to draw it, with the gap applied. */
   world: Vec3;
-  /** Human-readable coordinates for tooltips, e.g. "XY (3, −2)". */
+  /** Human-readable value for tooltips, e.g. "X (3)" or "Sum (1, 2.12, 0)". */
   label: string;
 }
 
 export interface MarkerOptions {
-  /** Planes whose 2D points are shown. */
-  planes: readonly PlaneId[];
-  /** Diagonals whose values are shown (Compass mode). */
-  diagonals: readonly DiagonalId[];
+  /** Axes whose values are shown (all of them in 3D; those lying in the plane when isolated). */
+  axes: readonly AnyAxisId[];
   single: boolean;
-  /** Whether diagonal values count toward the Single resultant. */
-  compass: boolean;
   gap: number;
 }
 
-export function itemMarkers(item: LineItem, { planes, diagonals, single, compass, gap }: MarkerOptions): Marker[] {
+export function itemMarkers(item: LineItem, { axes, single, gap }: MarkerOptions): Marker[] {
   if (single) {
-    const steps = resultant(item, compass);
-    return [{ id: 'xyz', steps, world: stepsToWorld(steps, gap), label: `XYZ ${formatCoords(steps)}` }];
+    const steps = resultant(item);
+    return [{ id: 'sum', steps, world: stepsToWorld(steps, gap), label: `Sum ${formatCoords(steps)}` }];
   }
-  const markers: Marker[] = planes.map((plane) => ({
-    id: plane,
-    steps: planePointTo3D(plane, item.points[plane]),
-    world: planePointTo3D(plane, item.points[plane], gap),
-    label: `${plane.toUpperCase()} ${formatPoint(item.points[plane])}`,
-  }));
-  for (const d of diagonals) {
-    const v = item.diagonals[d];
-    if (v === 0) continue; // nothing to show along a diagonal at 0
+  const markers: Marker[] = [];
+  for (const axis of axes) {
+    const v = item.values[axis];
+    if (v === 0) continue; // nothing to show along an axis at 0
     markers.push({
-      id: d,
-      steps: scale(AXIS_DIR[d], v),
-      // The gap applies along the diagonal itself, like it does along X/Y/Z.
-      world: scale(AXIS_DIR[d], stepToWorld(v, gap)),
-      label: `${DIAGONAL_SHORT[d]} ${formatCoords([v])}`,
+      id: axis,
+      steps: scale(AXIS_DIR[axis], v),
+      // Person-mode gap applies along the axis itself.
+      world: scale(AXIS_DIR[axis], stepToWorld(v, gap)),
+      label: `${AXIS_SHORT[axis]} ${formatCoords([v])}`,
     });
   }
   return markers;
+}
+
+/** The person sphere, when Person mode is on. */
+export interface Sphere {
+  center: Vec3;
+  radius: number;
+}
+
+/**
+ * Arrow from the origin out to `point`, or, with a `sphere`, from the sphere's surface (along the
+ * line from its center to the point). The tip stops `tipInset` short of the point. Returns null if
+ * the point is at the start or inside the sphere.
+ */
+export function outwardArrow(point: Vec3, sphere: Sphere | null, tipInset = 0): { tail: Vec3; tip: Vec3 } | null {
+  const origin: Vec3 = sphere ? sphere.center : [0, 0, 0];
+  const startAt = sphere ? sphere.radius : 0;
+  const offset: Vec3 = [point[0] - origin[0], point[1] - origin[1], point[2] - origin[2]];
+  const len = Math.hypot(...offset);
+  if (len <= startAt + 1e-6) return null;
+  const dir = scale(offset, 1 / len);
+  return { tail: add(origin, scale(dir, startAt)), tip: add(point, scale(dir, -tipInset)) };
 }
 
 /**
@@ -187,8 +219,4 @@ export function formatCoords(values: readonly number[]): string {
     return r < 0 ? `−${-r}` : String(r);
   };
   return `(${values.map(f).join(', ')})`;
-}
-
-export function formatPoint(p: PlanePoint): string {
-  return formatCoords([p.a, p.b]);
 }

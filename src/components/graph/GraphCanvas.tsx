@@ -2,17 +2,14 @@ import { Canvas } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { MOUSE } from 'three';
 import { selectAxisGap, selectGridSteps, selectIsolatePlane, useStore } from '../../state/store';
+import { AXIS_IDS, PERSON_RADIUS, PLANE_IDS, STEP_MAX, type AnyAxisId } from '../../state/schema';
 import {
-  AXIS_IDS,
-  DIAGONAL_IDS,
-  ISOLATE_PLANES,
-  PERSON_RADIUS,
-  PLANE_IDS,
-  STEP_MAX,
-  type AnyAxisId,
-  type PlaneId,
-} from '../../state/schema';
-import { PLANE_BASIS, axisInPlane, gridExtent, type MarkerOptions } from '../../lib/coords';
+  COMPASS_PLANE_AXES,
+  activeCompassPlanes,
+  axisInPlane,
+  gridExtent,
+  type MarkerOptions,
+} from '../../lib/coords';
 import GridPlane from './GridPlane';
 import Axes from './Axes';
 import PointDots from './PointDots';
@@ -29,25 +26,20 @@ export default function GraphCanvas() {
   // Push needs the sphere to push against; it also shows arrows in every view, not just Vectors.
   const pushOn = useStore((s) => s.modes.push) && personOn;
   const single = useStore((s) => s.modes.single);
-  const compass = useStore((s) => s.modes.compass);
+  const items = useStore((s) => s.items);
   const gap = useStore(selectAxisGap);
   const steps = useStore(selectGridSteps);
   const extent = gridExtent(gap, steps);
 
   const isolate = mode === 'isolate';
-  // Grids drawn: the isolated plane, or all planes (plus the two 45° Compass planes).
-  const gridPlanes = isolate ? [isolatePlane] : compass ? ISOLATE_PLANES : PLANE_IDS;
-  // Planes whose 2D points are shown; Compass planes hold no points of their own.
-  const pointPlanes: readonly PlaneId[] = isolate
-    ? PLANE_IDS.filter((p) => p === isolatePlane)
-    : PLANE_IDS;
-  // Diagonals shown: all of them in 3D, or only those lying in the isolated plane.
-  const diagonals = compass ? DIAGONAL_IDS.filter((d) => !isolate || axisInPlane(d, isolatePlane)) : [];
-  const axes: AnyAxisId[] = [
-    ...(isolate ? PLANE_BASIS[isolatePlane] : AXIS_IDS),
-    ...diagonals.filter((d) => !isolate || !PLANE_BASIS[isolatePlane].includes(d)),
-  ];
-  const markerOptions: MarkerOptions = { planes: pointPlanes, diagonals, single, compass, gap };
+  // A compass plane (and its two diagonal axes) appears once some visible item uses one of its diagonals.
+  const compassPlanes = activeCompassPlanes(items);
+  const gridPlanes = isolate ? [isolatePlane] : [...PLANE_IDS, ...compassPlanes];
+  // Axes drawn and whose values are shown: in isolate, only those lying in the plane.
+  const axes: AnyAxisId[] = [...AXIS_IDS, ...compassPlanes.flatMap((p) => COMPASS_PLANE_AXES[p])].filter(
+    (a) => !isolate || axisInPlane(a, isolatePlane),
+  );
+  const markerOptions: MarkerOptions = { axes, single, gap };
 
   return (
     <Canvas
@@ -82,11 +74,13 @@ export default function GraphCanvas() {
         <GridPlane key={p} plane={p} gap={gap} steps={steps} />
       ))}
       <Axes axes={axes} gap={gap} steps={steps} />
-      <PointDots options={markerOptions} />
+      {/* In Push mode the arrows stand in for the points, so their dots are hidden. */}
+      {!pushOn && <PointDots options={markerOptions} />}
       {(mode === 'vectors' || pushOn) && (
         <Vectors
           options={markerOptions}
-          push={pushOn ? { center: personPosition, radius: PERSON_RADIUS } : null}
+          sphere={personOn ? { center: personPosition, radius: PERSON_RADIUS } : null}
+          push={pushOn}
         />
       )}
       {personOn && <PersonSphere position={personPosition} radius={PERSON_RADIUS} />}

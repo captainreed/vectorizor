@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './TabBar.module.css';
 import { getDocument, selectIsolatePlane, useStore } from '../state/store';
 import {
-  ISOLATE_PLANES,
+  EXPORT_VERSION,
   MODE_IDS,
   PLANE_IDS,
   documentSchema,
@@ -12,6 +12,7 @@ import {
   type ModeId,
   type Preset,
 } from '../state/schema';
+import { activeCompassPlanes } from '../lib/coords';
 
 const PRESET_LABELS: Record<Preset, string> = {
   front: 'Front (XY)',
@@ -22,13 +23,12 @@ const PRESET_LABELS: Record<Preset, string> = {
 
 const PLANE_SHORT: Record<IsolatePlane, string> = { xy: 'XY', xz: 'XZ', yz: 'YZ', 'ne-y': 'NE–Y', 'nw-y': 'NW–Y' };
 
-const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single', compass: 'Compass' };
+const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single' };
 
 const MODE_HINTS: Record<ModeId, string> = {
   person: 'Show a person sphere at the center',
   push: 'Draw each vector as a force pushing on the person sphere (turns on Person)',
-  single: "Combine each item's three plane vectors into one 3D vector (their sum)",
-  compass: 'Add 4 diagonal axes (NE, NW, Up-NE, Up-NW) and two planes at 45°',
+  single: "Combine each item's axis values into one 3D vector (their sum)",
 };
 
 type MenuId = 'preset' | 'isolate' | 'modes' | null;
@@ -42,7 +42,9 @@ export default function TabBar() {
   const toggleMode = useStore((s) => s.toggleMode);
   const modesOn = MODE_IDS.filter((m) => modes[m]).length;
   const isolatePlane = useStore(selectIsolatePlane);
-  const isolateChoices = modes.compass ? ISOLATE_PLANES : PLANE_IDS;
+  // Compass planes can be isolated while they're shown (some item uses one of their diagonals).
+  const items = useStore((s) => s.items);
+  const isolateChoices = [...PLANE_IDS, ...activeCompassPlanes(items)];
   const [menu, setMenu] = useState<MenuId>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -184,7 +186,7 @@ function ImportExport() {
   }, [error]);
 
   const onExport = () => {
-    const payload = { app: 'vectorizor', version: 1, data: getDocument() };
+    const payload = { app: 'vectorizor', version: EXPORT_VERSION, data: getDocument() };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

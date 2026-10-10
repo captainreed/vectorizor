@@ -1,7 +1,17 @@
 import { useRef, useState } from 'react';
 import styles from './Graph.module.css';
 import { useStore } from '../../state/store';
-import { ALL_AXIS_IDS, AXIS_IDS, AXIS_LABEL_MAX, DEFAULT_AXES, type AxisLabel, type Axes } from '../../state/schema';
+import {
+  ALL_AXIS_IDS,
+  AXIS_IDS,
+  AXIS_LABEL_MAX,
+  DEFAULT_AXES,
+  DIAGONAL_IDS,
+  type AnyAxisId,
+  type AxisLabel,
+  type Axes,
+  type DiagonalId,
+} from '../../state/schema';
 import { AXIS_COLORS } from '../../lib/coords';
 
 const FIELDS: { key: keyof AxisLabel; label: string }[] = [
@@ -17,10 +27,16 @@ export default function AxisKey() {
   const setKeyEditing = useStore((s) => s.setKeyEditing);
   const setAxisLabel = useStore((s) => s.setAxisLabel);
   const setAxes = useStore((s) => s.setAxes);
-  const compass = useStore((s) => s.modes.compass);
+  const items = useStore((s) => s.items);
+  const gridOpacity = useStore((s) => s.view.gridOpacity);
+  const setGridOpacity = useStore((s) => s.setGridOpacity);
   const [collapsed, setCollapsed] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const snapshot = useRef<Axes | null>(null);
-  const shownIds = compass ? ALL_AXIS_IDS : AXIS_IDS;
+  // X/Y/Z always; a diagonal appears once a visible item uses it, or all of them under "More".
+  const inUse = (d: DiagonalId) => items.some((i) => i.visible && i.values[d] !== 0);
+  const shownIds: AnyAxisId[] = [...AXIS_IDS, ...DIAGONAL_IDS.filter((d) => showMore || inUse(d))];
+  const hiddenCount = ALL_AXIS_IDS.length - shownIds.length;
 
   if (collapsed) {
     return (
@@ -36,7 +52,7 @@ export default function AxisKey() {
   };
 
   const done = () => {
-    // Blank labels fall back to defaults (hidden Compass labels are kept as-is).
+    // Blank labels fall back to defaults.
     const cleaned = Object.fromEntries(
       ALL_AXIS_IDS.map((id) => [
         id,
@@ -65,6 +81,18 @@ export default function AxisKey() {
     >
       <div className={styles.keyHead}>
         <span>Key</span>
+        <input
+          type="range"
+          className={styles.gridOpacity}
+          min={0}
+          max={100}
+          step={5}
+          value={Math.round(gridOpacity * 100)}
+          aria-label="Grid opacity"
+          aria-valuetext={`${Math.round(gridOpacity * 100)}%`}
+          title={`Grid opacity: ${Math.round(gridOpacity * 100)}%`}
+          onChange={(e) => setGridOpacity(Number(e.target.value) / 100)}
+        />
         {!editing && (
           <button className="icon" onClick={startEdit} title="Edit axis labels" aria-label="Edit axis labels">
             ✎
@@ -108,6 +136,16 @@ export default function AxisKey() {
           ))}
         </tbody>
       </table>
+      {(showMore || hiddenCount > 0) && (
+        <button
+          className={styles.keyMore}
+          onClick={() => setShowMore(!showMore)}
+          aria-expanded={showMore}
+          title={showMore ? 'Hide unused diagonal axes' : 'Show all diagonal axes'}
+        >
+          {showMore ? 'Less ▴' : `More (${hiddenCount}) ▾`}
+        </button>
+      )}
       {editing && (
         <div className={styles.keyActions}>
           <button onClick={cancel}>Cancel</button>

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import styles from './List.module.css';
 import { useStore } from '../../state/store';
-import { DESCRIPTION_MAX, DIAGONAL_IDS, NAME_MAX, PLANE_IDS, type LineItem } from '../../state/schema';
-import { formatCoords, formatPoint, resultant } from '../../lib/coords';
+import { AXIS_IDS, DESCRIPTION_MAX, DIAGONAL_IDS, NAME_MAX, type LineItem } from '../../state/schema';
+import { formatCoords, resultant } from '../../lib/coords';
 import SliderGrid from './SliderGrid';
 
 interface Props {
@@ -20,7 +20,6 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
   const updateItem = useStore((s) => s.updateItem);
   const deleteItem = useStore((s) => s.deleteItem);
   const single = useStore((s) => s.modes.single);
-  const compass = useStore((s) => s.modes.compass);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hexDraft, setHexDraft] = useState(item.color);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -80,14 +79,11 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
         <span className={styles.name}>{item.name || <em>Untitled</em>}</span>
         {!expanded && (
           <span className={styles.summary}>
-            {PLANE_IDS.map((p) => (
-              <span key={p}>
-                {p.toUpperCase()}
-                {formatPoint(item.points[p])}
-              </span>
-            ))}
-            {compass && <span>Diag{formatCoords(DIAGONAL_IDS.map((d) => item.diagonals[d]))}</span>}
-            {single && <span className={styles.resultant}>XYZ{formatCoords(resultant(item, compass))}</span>}
+            <span>XYZ{formatCoords(AXIS_IDS.map((a) => item.values[a]))}</span>
+            {DIAGONAL_IDS.some((d) => item.values[d] !== 0) && (
+              <span>Diag{formatCoords(DIAGONAL_IDS.map((d) => item.values[d]))}</span>
+            )}
+            {single && <span className={styles.resultant}>Sum{formatCoords(resultant(item))}</span>}
           </span>
         )}
         <span className={styles.spacer} />

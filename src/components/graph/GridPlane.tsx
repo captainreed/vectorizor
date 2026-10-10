@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { DoubleSide } from 'three';
 import { Line } from '@react-three/drei';
+import { useStore } from '../../state/store';
 import type { IsolatePlane } from '../../state/schema';
 import { PLANE_TINTS, planePointTo3D, type Vec3 } from '../../lib/coords';
 
@@ -33,23 +34,25 @@ export default function GridPlane({ plane, gap, steps }: { plane: IsolatePlane; 
   );
 
   const tint = PLANE_TINTS[plane];
+  // User-controlled multiplier from the key's slider; axes are drawn separately and stay visible.
+  const k = useStore((s) => s.view.gridOpacity);
 
   return (
-    <group>
+    <group visible={k > 0}>
       {/* Keyed on size so geometries (and their bounding spheres) are rebuilt when the grid resizes. */}
       <mesh key={`fill-${gap}-${steps}`} renderOrder={-1}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[fill, 3]} />
         </bufferGeometry>
-        <meshBasicMaterial color={tint} transparent opacity={0.05} side={DoubleSide} depthWrite={false} />
+        <meshBasicMaterial color={tint} transparent opacity={0.05 * k} side={DoubleSide} depthWrite={false} />
       </mesh>
       <lineSegments key={`lines-${gap}-${steps}`}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[gridPositions, 3]} />
         </bufferGeometry>
-        <lineBasicMaterial color="#9aa3b5" transparent opacity={0.45} />
+        <lineBasicMaterial color="#9aa3b5" transparent opacity={0.45 * k} />
       </lineSegments>
-      <Line points={[...corners, corners[0]]} color={tint} lineWidth={1.6} transparent opacity={0.55} />
+      <Line points={[...corners, corners[0]]} color={tint} lineWidth={1.6} transparent opacity={0.55 * k} />
     </group>
   );
 }

@@ -4,17 +4,18 @@ export const STEP_MIN = -5;
 export const STEP_MAX = 5;
 
 export const AXIS_IDS = ['x', 'y', 'z'] as const;
-/** Compass mode: 45° diagonals (floor NE/NW, and up-diagonals between Y and each). One slider each. */
+/** 45° compass diagonals: floor NE/NW, and up-diagonals between Y and each. */
 export const DIAGONAL_IDS = ['ne', 'nw', 'une', 'unw'] as const;
+/** Every axis an item has a value (one slider) for. */
 export const ALL_AXIS_IDS = [...AXIS_IDS, ...DIAGONAL_IDS] as const;
 export const PLANE_IDS = ['xy', 'xz', 'yz'] as const;
-/** Compass mode adds two vertical planes: XY and YZ rotated 45° about Y. */
+/** Compass planes (XY and YZ rotated 45° about Y); shown only while one of their diagonals is in use. */
 export const DIAGONAL_PLANE_IDS = ['ne-y', 'nw-y'] as const;
 export const ISOLATE_PLANES = [...PLANE_IDS, ...DIAGONAL_PLANE_IDS] as const;
 export const PRESETS = ['front', 'top', 'side', 'iso'] as const;
 export const VIEW_MODES = ['free', 'vectors', 'preset', 'isolate'] as const;
 /** Independent on/off overlays, toggled from the Modes menu. */
-export const MODE_IDS = ['person', 'push', 'single', 'compass'] as const;
+export const MODE_IDS = ['person', 'push', 'single'] as const;
 
 /** Radius of the person sphere; also the gap inserted between the origin and step ±1. */
 export const PERSON_RADIUS = 1;
@@ -42,18 +43,49 @@ export const PALETTE = [
 ];
 
 const step = z.number().int().min(STEP_MIN).max(STEP_MAX);
-const planePoint = z.object({ a: step, b: step });
 
-export const lineItemSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().max(NAME_MAX),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  description: z.string().max(DESCRIPTION_MAX),
-  visible: z.boolean(),
-  points: z.object({ xy: planePoint, xz: planePoint, yz: planePoint }),
-  // Added with Compass mode; default keeps older saves/exports valid.
-  diagonals: z.object({ ne: step, nw: step, une: step, unw: step }).default({ ne: 0, nw: 0, une: 0, unw: 0 }),
-});
+export const DEFAULT_VALUES = { x: 0, y: 0, z: 0, ne: 0, nw: 0, une: 0, unw: 0 } as const satisfies Record<
+  AnyAxisId,
+  number
+>;
+
+/**
+ * Items used to store a 2D point per plane (so X, Y and Z each had two values) plus optional
+ * diagonals. Convert those to one value per axis: if only one of an axis's two values is non-zero
+ * it wins, otherwise they're averaged.
+ */
+function migrateLegacyItem(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || 'values' in raw || !('points' in raw)) return raw;
+  const { points, diagonals, ...rest } = raw as {
+    points?: Record<'xy' | 'xz' | 'yz', { a: number; b: number } | undefined>;
+    diagonals?: Record<string, number>;
+  };
+  const merge = (a?: number, b?: number) =>
+    a === undefined || b === undefined ? NaN : a === 0 ? b : b === 0 ? a : Math.round((a + b) / 2);
+  return {
+    ...rest,
+    values: {
+      ...DEFAULT_VALUES,
+      x: merge(points?.xy?.a, points?.xz?.a),
+      y: merge(points?.xy?.b, points?.yz?.a),
+      z: merge(points?.xz?.b, points?.yz?.b),
+      ...diagonals,
+    },
+  };
+}
+
+export const lineItemSchema = z.preprocess(
+  migrateLegacyItem,
+  z.object({
+    id: z.string().min(1),
+    name: z.string().max(NAME_MAX),
+    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    description: z.string().max(DESCRIPTION_MAX),
+    visible: z.boolean(),
+    /** One slider value per axis, −5..5, 0 (the middle) by default. */
+    values: z.object({ x: step, y: step, z: step, ne: step, nw: step, une: step, unw: step }),
+  }),
+);
 
 const axisLabel = z.object({
   name: z.string().max(AXIS_LABEL_MAX),
@@ -74,6 +106,7 @@ export const axesSchema = z.object({
   x: axisLabel,
   y: axisLabel,
   z: axisLabel,
+  // Added with the diagonals; defaults keep older saves/exports valid.
   ne: axisLabel.default(DEFAULT_DIAGONAL_LABELS.ne),
   nw: axisLabel.default(DEFAULT_DIAGONAL_LABELS.nw),
   une: axisLabel.default(DEFAULT_DIAGONAL_LABELS.une),
@@ -84,6 +117,8 @@ export const viewSchema = z.object({
   mode: z.enum(VIEW_MODES),
   preset: z.enum(PRESETS),
   isolatePlane: z.enum(ISOLATE_PLANES),
+  /** Opacity multiplier for grid planes (0 hides them); axes are unaffected. */
+  gridOpacity: z.number().min(0).max(1).default(1),
 });
 
 // Modes and the person entity were added after v1 shipped; defaults keep older saves/exports valid.
@@ -91,7 +126,6 @@ export const modesSchema = z.object({
   person: z.boolean().default(false),
   push: z.boolean().default(false),
   single: z.boolean().default(false),
-  compass: z.boolean().default(false),
 });
 
 /** World-space position of the person sphere (kept in state so it can be moved later). */
@@ -108,15 +142,18 @@ export const documentSchema = z.object({
   person: personSchema.default({}),
 });
 
+/** Version 2: one value per axis. Version 1 files (per-plane points) are migrated on import. */
+export const EXPORT_VERSION = 2;
+
 export const exportFileSchema = z.object({
   app: z.literal('vectorizor'),
-  version: z.literal(1),
+  version: z.union([z.literal(1), z.literal(EXPORT_VERSION)]),
   data: documentSchema,
 });
 
-export type PlanePoint = z.infer<typeof planePoint>;
+export type PlanePoint = { a: number; b: number };
 export type LineItem = z.infer<typeof lineItemSchema>;
-export type Diagonals = LineItem['diagonals'];
+export type AxisValues = LineItem['values'];
 export type AxisLabel = AxisLabelShape;
 export type Axes = z.infer<typeof axesSchema>;
 export type ViewState = z.infer<typeof viewSchema>;
@@ -131,11 +168,9 @@ export const DEFAULT_AXES: Axes = {
   ...DEFAULT_DIAGONAL_LABELS,
 };
 
-export const DEFAULT_DIAGONALS: Diagonals = { ne: 0, nw: 0, une: 0, unw: 0 };
+export const DEFAULT_VIEW: ViewState = { mode: 'free', preset: 'iso', isolatePlane: 'xy', gridOpacity: 1 };
 
-export const DEFAULT_VIEW: ViewState = { mode: 'free', preset: 'iso', isolatePlane: 'xy' };
-
-export const DEFAULT_MODES: Modes = { person: false, push: false, single: false, compass: false };
+export const DEFAULT_MODES: Modes = { person: false, push: false, single: false };
 
 export const DEFAULT_PERSON: Person = { position: [0, 0, 0] };
 

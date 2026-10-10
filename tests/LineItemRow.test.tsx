@@ -14,16 +14,18 @@ beforeEach(() =>
 );
 
 describe('list section', () => {
-  it('adds an item, expands it with 6 centered sliders, and updates the store', () => {
+  it('adds an item, expands it with 7 centered sliders (one per axis), and updates the store', () => {
     render(<ListSection />);
     fireEvent.click(screen.getByRole('button', { name: /add new item/i }));
 
     const sliders = screen.getAllByRole('slider');
-    expect(sliders).toHaveLength(6);
+    expect(sliders).toHaveLength(7);
     sliders.forEach((s) => expect(s).toHaveValue('0'));
 
-    fireEvent.change(screen.getByLabelText('XZ plane Z'), { target: { value: '4' } });
-    expect(useStore.getState().items[0].points.xz.b).toBe(4);
+    fireEvent.change(screen.getByLabelText('Z slider'), { target: { value: '4' } });
+    expect(useStore.getState().items[0].values.z).toBe(4);
+    fireEvent.change(screen.getByLabelText('Up-NE slider'), { target: { value: '-3' } });
+    expect(useStore.getState().items[0].values.une).toBe(-3);
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Alpha' } });
     expect(useStore.getState().items[0].name).toBe('Alpha');
@@ -48,17 +50,16 @@ describe('list section', () => {
   });
 });
 
-describe('compass sliders', () => {
-  it('shows 4 diagonal sliders only with Compass on, and updates the store', () => {
-    useStore.getState().addItem();
-    const { rerender } = render(<ListSection />);
-    expect(screen.getAllByRole('slider')).toHaveLength(6);
+describe('collapsed summary', () => {
+  it('shows X/Y/Z, adds diagonals only once one is non-zero', () => {
+    const id = useStore.getState().addItem();
+    useStore.getState().setValue(id, 'x', 3);
+    useStore.getState().setExpanded(null);
+    render(<ListSection />);
+    expect(screen.getByText('XYZ(3, 0, 0)')).toBeInTheDocument();
+    expect(screen.queryByText(/^Diag/)).toBeNull();
 
-    act(() => useStore.getState().toggleMode('compass'));
-    rerender(<ListSection />);
-    expect(screen.getAllByRole('slider')).toHaveLength(10);
-
-    fireEvent.change(screen.getByLabelText('Diagonal Up-NE'), { target: { value: '-3' } });
-    expect(useStore.getState().items[0].diagonals.une).toBe(-3);
+    act(() => useStore.getState().setValue(id, 'nw', -2));
+    expect(screen.getByText('Diag(0, −2, 0, 0)')).toBeInTheDocument();
   });
 });

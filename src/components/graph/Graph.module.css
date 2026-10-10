@@ -72,6 +72,14 @@
   flex: 1;
 }
 
+/* Grid opacity slider, between the "Key" title and the edit button */
+.gridOpacity {
+  width: 90px;
+  margin: 0 6px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .keyTable {
   border-collapse: collapse;
   width: 100%;
@@ -105,6 +113,20 @@
   border-radius: 2px;
   margin-right: 6px;
   vertical-align: middle;
+}
+
+.keyMore {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 1px 8px;
+  font-size: 11px;
+  color: var(--accent);
+  background: transparent;
+  border-color: transparent;
+}
+
+.keyMore:hover {
+  background: rgba(0, 0, 0, 0.05);
 }
 
 .keyActions {

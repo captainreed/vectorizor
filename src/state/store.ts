@@ -2,15 +2,14 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import {
   DEFAULT_AXES,
-  DEFAULT_DIAGONALS,
   DEFAULT_MODES,
   DEFAULT_PERSON,
+  DEFAULT_VALUES,
   DEFAULT_VIEW,
   MODE_IDS,
   MODE_REQUIRES,
   PALETTE,
   PERSON_RADIUS,
-  PLANE_IDS,
   STEP_MAX,
   clampStep,
   documentSchema,
@@ -18,17 +17,14 @@ import {
   type AppDocument,
   type AxisLabel,
   type Axes,
-  type DiagonalId,
   type IsolatePlane,
   type LineItem,
   type ModeId,
   type Person,
-  type PlaneId,
   type Preset,
   type ViewMode,
 } from './schema';
-
-import { resultant } from '../lib/coords';
+import { activeCompassPlanes, resultant } from '../lib/coords';
 
 export const STORAGE_KEY = 'vectorizor:v1';
 
@@ -43,8 +39,8 @@ interface UiState {
 interface Actions {
   addItem: () => string;
   updateItem: (id: string, patch: Partial<Pick<LineItem, 'name' | 'color' | 'description'>>) => void;
-  setPoint: (id: string, plane: PlaneId, key: 'a' | 'b', value: number) => void;
-  setDiagonal: (id: string, axis: DiagonalId, value: number) => void;
+  /** Set one axis slider (clamped to −5..5 integers). */
+  setValue: (id: string, axis: AnyAxisId, value: number) => void;
   toggleVisible: (id: string) => void;
   deleteItem: (id: string) => void;
   /** Expand a row (or collapse with null). Expanding also selects. */
@@ -55,6 +51,8 @@ interface Actions {
   setAxisLabel: (axis: AnyAxisId, patch: Partial<AxisLabel>) => void;
   setKeyEditing: (editing: boolean) => void;
   setViewMode: (mode: ViewMode) => void;
+  /** 0..1, clamped. */
+  setGridOpacity: (opacity: number) => void;
   setPreset: (preset: Preset) => void;
   setIsolatePlane: (plane: IsolatePlane) => void;
   resetCamera: () => void;
@@ -91,8 +89,7 @@ export function createItem(items: LineItem[]): LineItem {
     color: nextColor(items),
     description: '',
     visible: true,
-    points: { xy: { a: 0, b: 0 }, xz: { a: 0, b: 0 }, yz: { a: 0, b: 0 } },
-    diagonals: DEFAULT_DIAGONALS,
+    values: { ...DEFAULT_VALUES },
   };
 }
 
@@ -157,20 +154,9 @@ export const useStore = create<AppState>()(
       updateItem: (id, patch) =>
         set((s) => ({ items: s.items.map((i) => (i.id === id ? { ...i, ...patch } : i)) })),
 
-      setPoint: (id, plane, key, value) =>
+      setValue: (id, axis, value) =>
         set((s) => ({
-          items: s.items.map((i) =>
-            i.id === id
-              ? { ...i, points: { ...i.points, [plane]: { ...i.points[plane], [key]: clampStep(value) } } }
-              : i,
-          ),
-        })),
-
-      setDiagonal: (id, axis, value) =>
-        set((s) => ({
-          items: s.items.map((i) =>
-            i.id === id ? { ...i, diagonals: { ...i.diagonals, [axis]: clampStep(value) } } : i,
-          ),
+          items: s.items.map((i) => (i.id === id ? { ...i, values: { ...i.values, [axis]: clampStep(value) } } : i)),
         })),
 
       toggleVisible: (id) =>
@@ -202,6 +188,9 @@ export const useStore = create<AppState>()(
       setKeyEditing: (keyEditing) => set((s) => ({ ui: { ...s.ui, keyEditing } })),
 
       setViewMode: (mode) => set((s) => ({ view: { ...s.view, mode } })),
+
+      setGridOpacity: (opacity) =>
+        set((s) => ({ view: { ...s.view, gridOpacity: Math.max(0, Math.min(1, opacity)) } })),
 
       setPreset: (preset) =>
         set((s) => ({
@@ -259,19 +248,19 @@ export function getDocument(): AppDocument {
 export const selectAxisGap = (s: AppState): number => (s.modes.person ? PERSON_RADIUS : 0);
 
 /**
- * Grid half-size in steps. Single mode's resultants can reach ±10 (±~22 with Compass), so the grid
- * grows to fit the largest visible one, in multiples of 5 and never below the default ±5.
+ * Grid half-size in steps. Single mode's resultants can reach ~±17 per axis once the diagonals add
+ * in, so the grid grows to fit the largest visible one, in multiples of 5 and never below ±5.
  */
 export const selectGridSteps = (s: AppState): number => {
   if (!s.modes.single) return STEP_MAX;
-  const largest = Math.max(
-    0,
-    ...s.items.filter((i) => i.visible).flatMap((i) => resultant(i, s.modes.compass).map(Math.abs)),
-  );
+  const largest = Math.max(0, ...s.items.filter((i) => i.visible).flatMap((i) => resultant(i).map(Math.abs)));
   // Small epsilon so float noise (e.g. 10.0000000001) doesn't bump the grid up a size.
   return Math.max(STEP_MAX, Math.ceil(largest / STEP_MAX - 1e-9) * STEP_MAX);
 };
 
-/** The isolated plane, falling back to XY if a Compass plane is selected while Compass is off. */
-export const selectIsolatePlane = (s: AppState): IsolatePlane =>
-  s.modes.compass || (PLANE_IDS as readonly string[]).includes(s.view.isolatePlane) ? s.view.isolatePlane : 'xy';
+/** The isolated plane, falling back to XY if it's a compass plane that isn't currently shown. */
+export const selectIsolatePlane = (s: AppState): IsolatePlane => {
+  const plane = s.view.isolatePlane;
+  if (plane !== 'ne-y' && plane !== 'nw-y') return plane;
+  return activeCompassPlanes(s.items).includes(plane) ? plane : 'xy';
+};

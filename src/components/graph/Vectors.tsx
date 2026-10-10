@@ -1,28 +1,30 @@
 import { Line } from '@react-three/drei';
 import { Quaternion, Vector3 } from 'three';
 import { useStore } from '../../state/store';
-import { itemMarkers, pushArrow, type MarkerOptions, type Vec3 } from '../../lib/coords';
+import { itemMarkers, outwardArrow, pushArrow, type MarkerOptions, type Sphere, type Vec3 } from '../../lib/coords';
 import { DOT_RADIUS } from './PointDots';
 
 const HEAD_LEN = 0.42;
 const HEAD_RADIUS = 0.13;
 const UP = new Vector3(0, 1, 0);
 
-/** Sphere the arrows push against in Push mode. */
-export interface PushTarget {
-  center: Vec3;
-  radius: number;
-}
-
 /**
- * One arrow per item marker: per displayed plane and Compass diagonal, or a single 3D resultant
- * in Single mode.
- * - Default: from the origin to the marker's point.
- * - Push (`push` set): the same vector slid back along its own direction until its tip touches the
- *   outside of the sphere, so it reads as a force of that magnitude pushing on the sphere. The
- *   length is the raw slider magnitude (unaffected by the Person-mode gap).
+ * One arrow per item marker: per axis value, or a single 3D resultant in Single mode.
+ * - Default: from the origin to the marker's point; with the person `sphere` shown, the tail starts
+ *   on the sphere's surface instead (pointing away from its center).
+ * - Push: the same vector slid back along its own direction until its tip touches the outside of
+ *   the sphere, so it reads as a force of that magnitude pushing on the sphere. The length is the
+ *   raw slider magnitude (unaffected by the Person-mode gap).
  */
-export default function Vectors({ options, push }: { options: MarkerOptions; push?: PushTarget | null }) {
+export default function Vectors({
+  options,
+  sphere,
+  push,
+}: {
+  options: MarkerOptions;
+  sphere: Sphere | null;
+  push: boolean;
+}) {
   const items = useStore((s) => s.items);
 
   return (
@@ -32,19 +34,19 @@ export default function Vectors({ options, push }: { options: MarkerOptions; pus
         .map((item) =>
           itemMarkers(item, options).map((marker) => {
             const key = `${item.id}-${marker.id}`;
-            if (push) {
-              const arrow = pushArrow(marker.steps, push.center, push.radius);
+            if (push && sphere) {
+              const arrow = pushArrow(marker.steps, sphere.center, sphere.radius);
               if (!arrow) return null; // no force
               return (
                 <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />
               );
             }
-            const point = new Vector3(...marker.world);
-            const len = point.length();
-            if (len < 1e-6) return null; // zero-length vector: just the dot at the origin
             // Stop just short of the dot's center so the head stays visible.
-            const tip = point.clone().addScaledVector(point.clone().normalize(), -DOT_RADIUS * 0.6);
-            return <Arrow key={key} tail={new Vector3()} tip={tip} color={item.color} />;
+            const arrow = outwardArrow(marker.world, sphere, DOT_RADIUS * 0.6);
+            if (!arrow) return null;
+            return (
+              <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />
+            );
           }),
         )}
     </group>

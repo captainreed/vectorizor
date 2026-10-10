@@ -1,8 +1,9 @@
 import {
   AXIS_DIR,
+  activeCompassPlanes,
   axisInPlane,
   formatCoords,
-  formatPoint,
+  outwardArrow,
   gridExtent,
   itemMarkers,
   planeNormal,
@@ -13,38 +14,34 @@ import {
   stepsToWorld,
   type Vec3,
 } from '../src/lib/coords';
-import { DEFAULT_DIAGONALS, DIAGONAL_IDS, type LineItem } from '../src/state/schema';
+import { ALL_AXIS_IDS, DEFAULT_VALUES, type LineItem } from '../src/state/schema';
 
-const baseItem: LineItem = {
+const makeItem = (values: Partial<LineItem['values']> = {}, visible = true): LineItem => ({
   id: 'i',
   name: 'A',
   color: '#000000',
   description: '',
-  visible: true,
-  points: { xy: { a: 0, b: 0 }, xz: { a: 0, b: 0 }, yz: { a: 0, b: 0 } },
-  diagonals: DEFAULT_DIAGONALS,
-};
+  visible,
+  values: { ...DEFAULT_VALUES, ...values },
+});
 
 const expectClose = (actual: Vec3, expected: Vec3) =>
   actual.forEach((n, i) => expect(n).toBeCloseTo(expected[i], 9));
 
 const H = Math.SQRT1_2;
 
-describe('planePointTo3D', () => {
-  it('maps XY plane points to z = 0', () => {
+describe('planePointTo3D (grid geometry)', () => {
+  it('maps main-plane coordinates', () => {
     expect(planePointTo3D('xy', { a: 2, b: -3 })).toEqual([2, -3, 0]);
-  });
-  it('maps XZ plane points to y = 0', () => {
     expect(planePointTo3D('xz', { a: 4, b: 1 })).toEqual([4, 0, 1]);
-  });
-  it('maps YZ plane points to x = 0', () => {
     expect(planePointTo3D('yz', { a: -5, b: 5 })).toEqual([0, -5, 5]);
   });
-});
-
-describe('formatPoint', () => {
-  it('uses a real minus sign', () => {
-    expect(formatPoint({ a: -2, b: 3 })).toBe('(−2, 3)');
+  it('applies the gap', () => {
+    expect(planePointTo3D('xz', { a: 3, b: -2 }, 1)).toEqual([4, 0, -3]);
+  });
+  it('maps points on the 45° planes', () => {
+    expectClose(planePointTo3D('ne-y', { a: 2, b: 3 }), [2 * H, 3, 2 * H]);
+    expectClose(planePointTo3D('nw-y', { a: 2, b: 0 }, 1), [-3 * H, 0, 3 * H]);
   });
 });
 
@@ -55,10 +52,8 @@ describe('stepToWorld / gap', () => {
   it('pushes non-zero steps outward by the gap, leaving 0 at the origin', () => {
     expect([-5, -1, 0, 1, 5].map((s) => stepToWorld(s, 1))).toEqual([-6, -2, 0, 2, 6]);
     expect(gridExtent(1)).toBe(6);
-  });
-  it('applies the gap to plane points', () => {
-    expect(planePointTo3D('xz', { a: 3, b: -2 }, 1)).toEqual([4, 0, -3]);
-    expect(planePointTo3D('yz', { a: 0, b: 1 }, 1)).toEqual([0, 0, 2]);
+    expect(gridExtent(1, 10)).toBe(11);
+    expect(stepsToWorld([5, 0, -10], 1)).toEqual([6, 0, -11]);
   });
 });
 
@@ -77,35 +72,7 @@ describe('pushArrow', () => {
   });
 });
 
-describe('Single mode helpers', () => {
-  const points = { xy: { a: 3, b: 0 }, xz: { a: 2, b: -4 }, yz: { a: 1, b: 0 } };
-  const item = { ...baseItem, points };
-  const opts = { planes: ['xy', 'xz', 'yz'] as const, diagonals: [], single: true, compass: false, gap: 0 };
-
-  it('resultant sums the two values each axis gets from the planes', () => {
-    expect(resultant(item)).toEqual([5, 1, -4]);
-  });
-
-  it('itemMarkers gives one 3D marker in Single mode, one per plane otherwise', () => {
-    expect(itemMarkers(item, opts)).toEqual([
-      { id: 'xyz', steps: [5, 1, -4], world: [5, 1, -4], label: 'XYZ (5, 1, −4)' },
-    ]);
-    const planar = itemMarkers(item, { ...opts, planes: ['xz'], single: false, gap: 1 });
-    expect(planar).toEqual([{ id: 'xz', steps: [2, 0, -4], world: [3, 0, -5], label: 'XZ (2, −4)' }]);
-  });
-
-  it('grid extent and world mapping cover the doubled range', () => {
-    expect(gridExtent(0, 10)).toBe(10);
-    expect(gridExtent(1, 10)).toBe(11);
-    expect(stepsToWorld([5, 0, -10], 1)).toEqual([6, 0, -11]);
-  });
-
-  it('formatCoords handles any arity', () => {
-    expect(formatCoords([1, -2, 0])).toBe('(1, −2, 0)');
-  });
-});
-
-describe('Compass geometry', () => {
+describe('axis geometry', () => {
   it('every axis direction is a unit vector', () => {
     for (const dir of Object.values(AXIS_DIR)) expect(Math.hypot(...dir)).toBeCloseTo(1, 12);
   });
@@ -134,29 +101,68 @@ describe('Compass geometry', () => {
     expectClose(planeNormal('yz'), [1, 0, 0]);
     expectClose(planeNormal('ne-y'), [-H, 0, H]);
   });
+});
 
-  it('maps points on the 45° planes', () => {
-    expectClose(planePointTo3D('ne-y', { a: 2, b: 3 }), [2 * H, 3, 2 * H]);
-    expectClose(planePointTo3D('nw-y', { a: 2, b: 0 }, 1), [-3 * H, 0, 3 * H]);
+describe('compass planes', () => {
+  it('appear only while a visible item has a non-zero value on one of their diagonals', () => {
+    expect(activeCompassPlanes([makeItem({ x: 3 })])).toEqual([]);
+    expect(activeCompassPlanes([makeItem({ une: -1 })])).toEqual(['ne-y']);
+    expect(activeCompassPlanes([makeItem({ nw: 2 }), makeItem({ ne: 1 })])).toEqual(['ne-y', 'nw-y']);
+    expect(activeCompassPlanes([makeItem({ ne: 4 }, false)])).toEqual([]);
+  });
+});
+
+describe('itemMarkers', () => {
+  const all = { axes: ALL_AXIS_IDS, single: false, gap: 0 };
+
+  it('one marker per non-zero axis value, gap applied along the axis', () => {
+    const markers = itemMarkers(makeItem({ x: 3, z: -2, ne: 3 }), { ...all, gap: 1 });
+    expect(markers.map((m) => m.id)).toEqual(['x', 'z', 'ne']);
+    expect(markers[0]).toMatchObject({ steps: [3, 0, 0], world: [4, 0, 0], label: 'X (3)' });
+    expectClose(markers[2].steps, [3 * H, 0, 3 * H]);
+    expectClose(markers[2].world, [4 * H, 0, 4 * H]);
+    expect(markers[2].label).toBe('NE (3)');
   });
 
-  it('diagonal markers: raw force in steps, gap applied along the diagonal, zeros skipped', () => {
-    const item = { ...baseItem, diagonals: { ...DEFAULT_DIAGONALS, ne: 3, unw: -2 } };
-    const markers = itemMarkers(item, { planes: [], diagonals: DIAGONAL_IDS, single: false, compass: true, gap: 1 });
-    expect(markers.map((m) => m.id)).toEqual(['ne', 'unw']);
-    expectClose(markers[0].steps, [3 * H, 0, 3 * H]);
-    expectClose(markers[0].world, [4 * H, 0, 4 * H]);
-    expect(markers[0].label).toBe('NE (3)');
-    expectClose(markers[1].world, [1.5, -3 * H, -1.5]);
+  it('a new item (all sliders centered) draws nothing', () => {
+    expect(itemMarkers(makeItem(), all)).toEqual([]);
   });
 
-  it('Single resultant adds diagonals only when Compass is on', () => {
-    const item = { ...baseItem, diagonals: { ...DEFAULT_DIAGONALS, ne: 2, une: 2 } };
-    expectClose(resultant(item, false), [0, 0, 0]);
-    expectClose(resultant(item, true), [2 * H + 1, 2 * H, 2 * H + 1]);
+  it('only shows the requested axes', () => {
+    expect(itemMarkers(makeItem({ x: 1, y: 1 }), { ...all, axes: ['x'] }).map((m) => m.id)).toEqual(['x']);
   });
 
-  it('formatCoords rounds to 2 decimals and never prints −0', () => {
+  it('Single mode gives one marker at the sum of every axis vector', () => {
+    const item = makeItem({ x: 3, y: 1, z: -4, ne: 2, une: 2 });
+    expectClose(resultant(item), [3 + 2 * H + 1, 1 + 2 * H, -4 + 2 * H + 1]);
+    const [sum] = itemMarkers(makeItem({ x: 3, y: 1, z: -4 }), { ...all, single: true });
+    expect(sum).toEqual({ id: 'sum', steps: [3, 1, -4], world: [3, 1, -4], label: 'Sum (3, 1, −4)' });
+  });
+});
+
+describe('formatCoords', () => {
+  it('uses real minus signs, rounds to 2 decimals and never prints −0', () => {
+    expect(formatCoords([1, -2, 0])).toBe('(1, −2, 0)');
     expect(formatCoords([Math.SQRT2, -0.0001, -2.554])).toBe('(1.41, 0, −2.55)');
+  });
+});
+
+describe('outwardArrow', () => {
+  it('starts at the origin without a sphere', () => {
+    expect(outwardArrow([4, 0, 0], null)).toEqual({ tail: [0, 0, 0], tip: [4, 0, 0] });
+  });
+
+  it('starts on the sphere surface with Person on, tip inset from the dot', () => {
+    expect(outwardArrow([4, 0, 0], { center: [0, 0, 0], radius: 1 }, 0.1)).toEqual({
+      tail: [1, 0, 0],
+      tip: [3.9, 0, 0],
+    });
+    const a = outwardArrow([0, 3, 4], { center: [0, 0, 0], radius: 1 })!;
+    expectClose(a.tail, [0, 0.6, 0.8]);
+  });
+
+  it('measures from a moved sphere, and skips points inside it', () => {
+    expect(outwardArrow([4, 1, 0], { center: [0, 1, 0], radius: 1 })).toEqual({ tail: [1, 1, 0], tip: [4, 1, 0] });
+    expect(outwardArrow([0.5, 0, 0], { center: [0, 0, 0], radius: 1 })).toBeNull();
   });
 });

@@ -1,63 +1,42 @@
 import styles from './List.module.css';
 import { useStore } from '../../state/store';
-import { PLANE_IDS, STEP_MAX, STEP_MIN, type AnyAxisId, type DiagonalId, type LineItem } from '../../state/schema';
-import { AXIS_COLORS, DIAGONAL_SHORT, PLANE_AXES } from '../../lib/coords';
+import { AXIS_IDS, DIAGONAL_IDS, STEP_MAX, STEP_MIN, type AnyAxisId, type LineItem } from '../../state/schema';
+import { AXIS_COLORS, AXIS_SHORT } from '../../lib/coords';
 
 const TICKS = Array.from({ length: STEP_MAX - STEP_MIN + 1 }, (_, i) => STEP_MIN + i);
 
-/** Compass sliders, laid out as floor diagonals then up-diagonals. */
-const DIAGONAL_ROWS: [DiagonalId, DiagonalId][] = [
-  ['ne', 'nw'],
-  ['une', 'unw'],
+const SECTIONS: { title: string; axes: readonly AnyAxisId[] }[] = [
+  { title: 'Axes', axes: AXIS_IDS },
+  { title: 'Diagonals', axes: DIAGONAL_IDS },
 ];
 
+/** One slider per axis (7 in all), each −5..5 and centered at 0 by default. */
 export default function SliderGrid({ item }: { item: LineItem }) {
-  const compass = useStore((s) => s.modes.compass);
-  const setPoint = useStore((s) => s.setPoint);
-  const setDiagonal = useStore((s) => s.setDiagonal);
+  const setValue = useStore((s) => s.setValue);
 
   return (
-    <div className={styles.sliders} aria-label="Point position sliders">
+    <div className={styles.sliders} aria-label="Axis value sliders">
       <datalist id="vz-ticks">
         {TICKS.map((t) => (
           <option key={t} value={t} />
         ))}
       </datalist>
-      {PLANE_IDS.map((plane) => (
-        <div key={plane} className={styles.planeRow}>
-          <span className={styles.planeLabel}>{plane.toUpperCase()}</span>
-          {(['a', 'b'] as const).map((slot, i) => (
-            <AxisSlider
-              key={slot}
-              axisId={PLANE_AXES[plane][i]}
-              value={item.points[plane][slot]}
-              color={item.color}
-              label={(name) => `${plane.toUpperCase()} plane ${name}`}
-              onChange={(v) => setPoint(item.id, plane, slot, v)}
-            />
-          ))}
+      {SECTIONS.map(({ title, axes }) => (
+        <div key={title}>
+          <div className={styles.sliderSection}>{title}</div>
+          <div className={styles.axisGrid}>
+            {axes.map((axis) => (
+              <AxisSlider
+                key={axis}
+                axisId={axis}
+                value={item.values[axis]}
+                color={item.color}
+                onChange={(v) => setValue(item.id, axis, v)}
+              />
+            ))}
+          </div>
         </div>
       ))}
-      {compass && (
-        <>
-          <div className={styles.sliderSection}>Diagonals</div>
-          {DIAGONAL_ROWS.map((row) => (
-            <div key={row.join('-')} className={styles.planeRow}>
-              <span className={styles.planeLabel} />
-              {row.map((d) => (
-                <AxisSlider
-                  key={d}
-                  axisId={d}
-                  value={item.diagonals[d]}
-                  color={item.color}
-                  label={() => `Diagonal ${DIAGONAL_SHORT[d]}`}
-                  onChange={(v) => setDiagonal(item.id, d, v)}
-                />
-              ))}
-            </div>
-          ))}
-        </>
-      )}
     </div>
   );
 }
@@ -66,14 +45,11 @@ function AxisSlider({
   axisId,
   value,
   color,
-  label,
   onChange,
 }: {
   axisId: AnyAxisId;
   value: number;
   color: string;
-  /** Accessible label, given the axis's current (user-editable) name. */
-  label: (axisName: string) => string;
   onChange: (value: number) => void;
 }) {
   const axis = useStore((s) => s.axes[axisId]);
@@ -92,7 +68,8 @@ function AxisSlider({
         step={1}
         list="vz-ticks"
         value={value}
-        aria-label={label(axis.name)}
+        // Fixed name (not the editable label) so it stays stable when axes are renamed.
+        aria-label={`${AXIS_SHORT[axisId]} slider`}
         aria-valuetext={`${value}`}
         style={{ accentColor: color }}
         onChange={(e) => onChange(Number(e.target.value))}
