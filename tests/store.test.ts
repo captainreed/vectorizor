@@ -124,13 +124,13 @@ describe('schema', () => {
       view: DEFAULT_VIEW,
       modes: { person: true, compass: true },
     });
-    expect(parsed.modes).toEqual({ person: true, push: false, single: false });
+    expect(parsed.modes).toEqual({ person: true, push: false, single: false, result: false });
   });
 });
 
 describe('modes', () => {
   it('are all off by default and toggle independently of the view', () => {
-    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false, result: false });
     expect(selectAxisGap(useStore.getState())).toBe(0);
 
     useStore.getState().toggleMode('person');
@@ -160,7 +160,7 @@ describe('modes', () => {
 
     const legacy = { items: [], axes: DEFAULT_AXES, view: DEFAULT_VIEW };
     const parsed = documentSchema.parse(legacy);
-    expect(parsed.modes).toEqual({ person: false, push: false, single: false });
+    expect(parsed.modes).toEqual({ person: false, push: false, single: false, result: false });
     expect(parsed.person).toEqual({ position: [0, 0, 0] });
   });
 });
@@ -168,17 +168,17 @@ describe('modes', () => {
 describe('push mode', () => {
   it('turning Push on also turns on Person', () => {
     useStore.getState().toggleMode('push');
-    expect(useStore.getState().modes).toEqual({ person: true, push: true, single: false });
+    expect(useStore.getState().modes).toEqual({ person: true, push: true, single: false, result: false });
   });
 
   it('turning Person off also turns off Push; turning Push off leaves Person on', () => {
     useStore.getState().toggleMode('push');
     useStore.getState().toggleMode('person');
-    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: false, push: false, single: false, result: false });
 
     useStore.getState().toggleMode('push');
     useStore.getState().toggleMode('push');
-    expect(useStore.getState().modes).toEqual({ person: true, push: false, single: false });
+    expect(useStore.getState().modes).toEqual({ person: true, push: false, single: false, result: false });
   });
 });
 
@@ -226,5 +226,14 @@ describe('grid opacity', () => {
     const { mode, preset, isolatePlane } = DEFAULT_VIEW;
     const parsed = documentSchema.parse({ items: [], axes: DEFAULT_AXES, view: { mode, preset, isolatePlane } });
     expect(parsed.view.gridOpacity).toBe(1);
+  });
+});
+
+describe('result mode', () => {
+  it('turns Person on, and turning Person off turns it off', () => {
+    useStore.getState().toggleMode('result');
+    expect(useStore.getState().modes).toMatchObject({ person: true, result: true });
+    useStore.getState().toggleMode('person');
+    expect(useStore.getState().modes).toMatchObject({ person: false, result: false });
   });
 });

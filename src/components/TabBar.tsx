@@ -23,12 +23,13 @@ const PRESET_LABELS: Record<Preset, string> = {
 
 const PLANE_SHORT: Record<IsolatePlane, string> = { xy: 'XY', xz: 'XZ', yz: 'YZ', 'ne-y': 'NE–Y', 'nw-y': 'NW–Y' };
 
-const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single' };
+const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single', result: 'Result' };
 
 const MODE_HINTS: Record<ModeId, string> = {
   person: 'Show a person sphere at the center',
   push: 'Draw each vector as a force pushing on the person sphere (turns on Person)',
   single: "Combine each item's axis values into one 3D vector (their sum)",
+  result: 'Move the person to where the dots pulling on it like springs balance: their average position (turns on Person)',
 };
 
 type MenuId = 'preset' | 'isolate' | 'modes' | null;

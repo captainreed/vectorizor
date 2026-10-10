@@ -177,6 +177,21 @@ export function itemMarkers(item: LineItem, { axes, single, gap }: MarkerOptions
   return markers;
 }
 
+/**
+ * Result mode: where the person sphere settles if every dot pulls on it with an identical spring.
+ * Springs balance where the offsets to all dots sum to zero, i.e. at the dots' average position.
+ * Uses every visible dot as drawn (all axes, or the sums in Single mode), independent of the view.
+ * Returns null when there are no dots.
+ */
+export function resultCenter(items: readonly LineItem[], { single, gap }: { single: boolean; gap: number }): Vec3 | null {
+  const dots = items
+    .filter((i) => i.visible)
+    .flatMap((i) => itemMarkers(i, { axes: ALL_AXIS_IDS, single, gap }))
+    .map((m) => m.world);
+  if (dots.length === 0) return null;
+  return scale(dots.reduce<Vec3>(add, [0, 0, 0]), 1 / dots.length);
+}
+
 /** The person sphere, when Person mode is on. */
 export interface Sphere {
   center: Vec3;

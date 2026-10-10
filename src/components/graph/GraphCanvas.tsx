@@ -6,9 +6,11 @@ import { AXIS_IDS, PERSON_RADIUS, PLANE_IDS, STEP_MAX, type AnyAxisId } from '..
 import {
   COMPASS_PLANE_AXES,
   activeCompassPlanes,
+  resultCenter,
   axisInPlane,
   gridExtent,
   type MarkerOptions,
+  type Vec3,
 } from '../../lib/coords';
 import GridPlane from './GridPlane';
 import Axes from './Axes';
@@ -40,6 +42,11 @@ export default function GraphCanvas() {
     (a) => !isolate || axisInPlane(a, isolatePlane),
   );
   const markerOptions: MarkerOptions = { axes, single, gap };
+
+  // Result mode: the sphere sits where the dots' spring pulls balance (their average position).
+  const resultOn = useStore((s) => s.modes.result) && personOn;
+  const sphereCenter: Vec3 = (resultOn && resultCenter(items, { single, gap })) || personPosition;
+  const sphere = personOn ? { center: sphereCenter, radius: PERSON_RADIUS } : null;
 
   return (
     <Canvas
@@ -79,11 +86,11 @@ export default function GraphCanvas() {
       {(mode === 'vectors' || pushOn) && (
         <Vectors
           options={markerOptions}
-          sphere={personOn ? { center: personPosition, radius: PERSON_RADIUS } : null}
+          sphere={sphere}
           push={pushOn}
         />
       )}
-      {personOn && <PersonSphere position={personPosition} radius={PERSON_RADIUS} />}
+      {sphere && <PersonSphere position={sphere.center} radius={sphere.radius} />}
     </Canvas>
   );
 }

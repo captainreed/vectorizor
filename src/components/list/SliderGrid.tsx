@@ -16,11 +16,6 @@ export default function SliderGrid({ item }: { item: LineItem }) {
 
   return (
     <div className={styles.sliders} aria-label="Axis value sliders">
-      <datalist id="vz-ticks">
-        {TICKS.map((t) => (
-          <option key={t} value={t} />
-        ))}
-      </datalist>
       {SECTIONS.map(({ title, axes }) => (
         <div key={title}>
           <div className={styles.sliderSection}>{title}</div>
@@ -66,7 +61,6 @@ function AxisSlider({
         min={STEP_MIN}
         max={STEP_MAX}
         step={1}
-        list="vz-ticks"
         value={value}
         // Fixed name (not the editable label) so it stays stable when axes are renamed.
         aria-label={`${AXIS_SHORT[axisId]} slider`}
@@ -74,6 +68,12 @@ function AxisSlider({
         style={{ accentColor: color }}
         onChange={(e) => onChange(Number(e.target.value))}
       />
+      {/* Custom ticks (native datalist ticks can't be styled): zero is longer and darker. */}
+      <div className={styles.ticks} aria-hidden>
+        {TICKS.map((t) => (
+          <span key={t} className={t === 0 ? styles.tickZero : styles.tick} />
+        ))}
+      </div>
       <div className={styles.ends}>
         <span>{axis.negLabel}</span>
         <span>{axis.posLabel}</span>

@@ -15,7 +15,7 @@ export const ISOLATE_PLANES = [...PLANE_IDS, ...DIAGONAL_PLANE_IDS] as const;
 export const PRESETS = ['front', 'top', 'side', 'iso'] as const;
 export const VIEW_MODES = ['free', 'vectors', 'preset', 'isolate'] as const;
 /** Independent on/off overlays, toggled from the Modes menu. */
-export const MODE_IDS = ['person', 'push', 'single'] as const;
+export const MODE_IDS = ['person', 'push', 'single', 'result'] as const;
 
 /** Radius of the person sphere; also the gap inserted between the origin and step ±1. */
 export const PERSON_RADIUS = 1;
@@ -35,7 +35,7 @@ export type ViewMode = (typeof VIEW_MODES)[number];
 export type ModeId = (typeof MODE_IDS)[number];
 
 /** Modes that only make sense with others on: enabling turns these on, disabling them turns it off. */
-export const MODE_REQUIRES: Partial<Record<ModeId, ModeId[]>> = { push: ['person'] };
+export const MODE_REQUIRES: Partial<Record<ModeId, ModeId[]>> = { push: ['person'], result: ['person'] };
 
 export const PALETTE = [
   '#e4572e', '#2e86de', '#29a36a', '#f2a541', '#9b59b6', '#17becf',
@@ -126,6 +126,7 @@ export const modesSchema = z.object({
   person: z.boolean().default(false),
   push: z.boolean().default(false),
   single: z.boolean().default(false),
+  result: z.boolean().default(false),
 });
 
 /** World-space position of the person sphere (kept in state so it can be moved later). */
@@ -170,7 +171,7 @@ export const DEFAULT_AXES: Axes = {
 
 export const DEFAULT_VIEW: ViewState = { mode: 'free', preset: 'iso', isolatePlane: 'xy', gridOpacity: 1 };
 
-export const DEFAULT_MODES: Modes = { person: false, push: false, single: false };
+export const DEFAULT_MODES: Modes = { person: false, push: false, single: false, result: false };
 
 export const DEFAULT_PERSON: Person = { position: [0, 0, 0] };
 

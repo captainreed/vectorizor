@@ -83,7 +83,7 @@ test('add item, move slider, switch tabs, persist across reload', async ({ page 
 
   // Diagonals: the compass planes only appear once a diagonal slider is non-zero.
   await page.getByRole('button', { name: /^modes/i }).click();
-  await expect(page.getByRole('menuitemcheckbox')).toHaveCount(3); // no Compass toggle
+  await expect(page.getByRole('menuitemcheckbox')).toHaveCount(4); // Person, Push, Single, Result (no Compass)
   await page.getByRole('menuitemcheckbox', { name: 'Single' }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('tab', { name: /isolate/i }).click();
@@ -126,6 +126,17 @@ test('add item, move slider, switch tabs, persist across reload', async ({ page 
   await page.getByRole('slider', { name: 'Grid opacity' }).fill('40');
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/grid-opacity-40.png' });
+
+  // Result: the person moves to the dots' average position (Push and Single off).
+  await page.getByRole('button', { name: /^modes/i }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Push' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Single' }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Result' }).click();
+  await expect(page.getByRole('menuitemcheckbox', { name: 'Person' })).toHaveAttribute('aria-checked', 'true');
+  await page.keyboard.press('Escape');
+  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'test-results/result-vectors.png' });
 
   expect(errors).toEqual([]);
 });

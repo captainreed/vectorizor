@@ -217,6 +217,35 @@
   margin: 2px 0 0;
 }
 
+/* Tick row under each slider; side padding = half the thumb width so ticks line up with thumb stops. */
+.ticks {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 9px;
+  padding: 0 7px;
+}
+
+.tick,
+.tickZero {
+  flex: none;
+  border-radius: 1px;
+}
+
+.tick {
+  width: 1px;
+  height: 5px;
+  background: #b4bbc8;
+}
+
+/* Zero: longer and bolder so the center is easy to find. */
+.tickZero {
+  width: 2px;
+  height: 9px;
+  margin: 0 -0.5px; /* keep its center aligned with the 1px ticks */
+  background: var(--text);
+}
+
 .sliderHead {
   display: flex;
   align-items: center;

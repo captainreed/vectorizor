@@ -4,6 +4,7 @@ import {
   axisInPlane,
   formatCoords,
   outwardArrow,
+  resultCenter,
   gridExtent,
   itemMarkers,
   planeNormal,
@@ -164,5 +165,26 @@ describe('outwardArrow', () => {
   it('measures from a moved sphere, and skips points inside it', () => {
     expect(outwardArrow([4, 1, 0], { center: [0, 1, 0], radius: 1 })).toEqual({ tail: [1, 1, 0], tip: [4, 1, 0] });
     expect(outwardArrow([0.5, 0, 0], { center: [0, 0, 0], radius: 1 })).toBeNull();
+  });
+});
+
+describe('resultCenter (Result mode)', () => {
+  it('is the average of every visible dot, where equal springs balance', () => {
+    // Dots at +4 and −1 on X: springs balance at 1.5.
+    const items = [makeItem({ x: 4 }), { ...makeItem({ x: -1 }), id: 'b' }];
+    expect(resultCenter(items, { single: false, gap: 0 })).toEqual([1.5, 0, 0]);
+  });
+
+  it('uses each axis dot (and diagonals) of an item, and the dots as drawn with the gap', () => {
+    // One item with X 2 and Z −2 (two dots): average (1, 0, −1); with the gap the dots sit at ±3.
+    expect(resultCenter([makeItem({ x: 2, z: -2 })], { single: false, gap: 0 })).toEqual([1, 0, -1]);
+    expect(resultCenter([makeItem({ x: 2, z: -2 })], { single: false, gap: 1 })).toEqual([1.5, 0, -1.5]);
+    expectClose(resultCenter([makeItem({ ne: 2 })], { single: false, gap: 0 })!, [2 * H, 0, 2 * H]);
+  });
+
+  it('uses the sum dots in Single mode, ignores hidden items, and is null with no dots', () => {
+    expect(resultCenter([makeItem({ x: 2, y: 4 })], { single: true, gap: 0 })).toEqual([2, 4, 0]);
+    expect(resultCenter([makeItem({ x: 3 }, false)], { single: false, gap: 0 })).toBeNull();
+    expect(resultCenter([makeItem()], { single: false, gap: 0 })).toBeNull();
   });
 });
