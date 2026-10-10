@@ -1,4 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/**
+ * The old Free 3D / Vectors tabs: set the dots/vectors toggle and return to a free (isometric)
+ * camera.
+ */
+async function freeView(page: Page, vectors: boolean) {
+  const toggle = page.getByRole('switch', { name: 'Vectors' });
+  if ((await toggle.getAttribute('aria-checked')) !== String(vectors)) await toggle.click();
+  await page.getByRole('button', { name: /^views/i }).click();
+  await page.getByRole('menuitemradio', { name: 'Isometric' }).click();
+}
 
 test('add item, move slider, switch tabs, keep the working session across reload', async ({ page }) => {
   const errors: string[] = [];
@@ -21,17 +32,17 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.getByLabel('Z slider').fill('-4');
 
   await page.screenshot({ path: 'test-results/free.png' });
-  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await freeView(page, true);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/vectors.png' });
 
-  await page.getByRole('tab', { name: /presets/i }).click();
+  await page.getByRole('button', { name: /^views/i }).click();
   await page.getByRole('menuitemradio', { name: 'Top (XZ)' }).click();
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/preset-top.png' });
 
-  await page.getByRole('tab', { name: /isolate/i }).click();
-  await page.getByRole('menuitemradio', { name: 'XY plane' }).click();
+  await page.getByRole('button', { name: /^views/i }).click();
+  await page.getByRole('menuitemradio', { name: 'Isolate XY plane' }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/isolate-xy.png' });
 
@@ -52,11 +63,11 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.reload();
   await expect(page.getByText('Alpha')).toBeVisible();
   await expect(page.getByText(/2 items/)).toBeVisible();
-  await expect(page.getByRole('tab', { name: /isolate: xy/i })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('button', { name: /views: isolate xy/i })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Axis key' }).getByText('Speed')).toBeVisible();
   await expect(page.getByRole('button', { name: /^modes \(1\)/i })).toBeVisible();
 
-  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await freeView(page, true);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/person-vectors.png' });
 
@@ -64,11 +75,11 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.getByRole('menuitemcheckbox', { name: 'Push' }).click();
   await expect(page.getByRole('menuitemcheckbox', { name: 'Push' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: 'Free 3D' }).click();
+  await freeView(page, false);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/push-free.png' });
-  await page.getByRole('tab', { name: /isolate/i }).click();
-  await page.getByRole('menuitemradio', { name: 'XZ plane' }).click();
+  await page.getByRole('button', { name: /^views/i }).click();
+  await page.getByRole('menuitemradio', { name: 'Isolate XZ plane' }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/push-isolate-xz.png' });
 
@@ -77,7 +88,7 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.getByRole('menuitemcheckbox', { name: 'Push' }).click();
   await page.keyboard.press('Escape');
   await expect(page.getByText('Sum(3, 0, 0)')).toBeVisible();
-  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await freeView(page, true);
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/single-vectors.png' });
 
@@ -86,10 +97,10 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await expect(page.getByRole('menuitemcheckbox')).toHaveCount(4); // Person, Push, Single, Result (no Compass)
   await page.getByRole('menuitemcheckbox', { name: 'Single' }).click();
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: /isolate/i }).click();
-  await expect(page.getByRole('menuitemradio', { name: 'NE–Y plane' })).toHaveCount(0);
+  await page.getByRole('button', { name: /^views/i }).click();
+  await expect(page.getByRole('menuitemradio', { name: 'Isolate NE–Y plane' })).toHaveCount(0);
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await freeView(page, true);
   await page.getByRole('button', { name: /Alpha — expand/ }).click();
   await page.getByLabel('NE slider', { exact: true }).fill('3');
   await page.getByLabel('Up-NW slider').fill('4');
@@ -99,19 +110,19 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.getByRole('button', { name: /^modes/i }).click();
   await page.getByRole('menuitemcheckbox', { name: 'Push' }).click();
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: 'Free 3D' }).click();
+  await freeView(page, false);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/compass-push.png' });
 
-  await page.getByRole('tab', { name: /isolate/i }).click();
-  await page.getByRole('menuitemradio', { name: 'NE–Y plane' }).click();
+  await page.getByRole('button', { name: /^views/i }).click();
+  await page.getByRole('menuitemradio', { name: 'Isolate NE–Y plane' }).click();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/compass-isolate-ne-y.png' });
 
   await page.getByRole('button', { name: /^modes/i }).click();
   await page.getByRole('menuitemcheckbox', { name: 'Single' }).click();
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: 'Free 3D' }).click();
+  await freeView(page, false);
   await page.waitForTimeout(600);
   await page.screenshot({ path: 'test-results/compass-single.png' });
 
@@ -134,7 +145,7 @@ test('add item, move slider, switch tabs, keep the working session across reload
   await page.getByRole('menuitemcheckbox', { name: 'Result' }).click();
   await expect(page.getByRole('menuitemcheckbox', { name: 'Person' })).toHaveAttribute('aria-checked', 'true');
   await page.keyboard.press('Escape');
-  await page.getByRole('tab', { name: 'Vectors' }).click();
+  await freeView(page, true);
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'test-results/result-vectors.png' });
 

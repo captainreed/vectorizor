@@ -22,7 +22,6 @@ import {
   type ModeId,
   type Person,
   type Preset,
-  type ViewMode,
 } from './schema';
 import { activeCompassPlanes, resultant } from '../lib/coords';
 
@@ -50,7 +49,8 @@ interface Actions {
   setAxes: (axes: Axes) => void;
   setAxisLabel: (axis: AnyAxisId, patch: Partial<AxisLabel>) => void;
   setKeyEditing: (editing: boolean) => void;
-  setViewMode: (mode: ViewMode) => void;
+  /** Switch between dots only (Free 3D) and dots with arrows (Vectors), keeping the camera view. */
+  toggleVectors: () => void;
   /** 0..1, clamped. */
   setGridOpacity: (opacity: number) => void;
   setPreset: (preset: Preset) => void;
@@ -204,7 +204,7 @@ export const useStore = create<AppState>()(
 
       setKeyEditing: (keyEditing) => set((s) => ({ ui: { ...s.ui, keyEditing } })),
 
-      setViewMode: (mode) => set((s) => ({ view: { ...s.view, mode } })),
+      toggleVectors: () => set((s) => ({ view: { ...s.view, vectors: !s.view.vectors } })),
 
       setGridOpacity: (opacity) =>
         set((s) => ({ view: { ...s.view, gridOpacity: Math.max(0, Math.min(1, opacity)) } })),

@@ -22,14 +22,45 @@
   overflow: hidden;
 }
 
-.reset {
+.overlays {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  max-height: calc(100% - 24px);
+  overflow-y: auto;
+  /* Let clicks/drags reach the graph between and around the cards. */
+  pointer-events: none;
+}
+
+.overlays > * {
+  pointer-events: auto;
+}
+
+.viewButtons {
   position: absolute;
   left: 12px;
   bottom: 12px;
+  display: flex;
+  gap: 6px;
+}
+
+.viewButtons button {
   font-size: 12px;
   padding: 4px 10px;
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(4px);
+}
+
+.viewButtons button.on {
+  background: var(--accent-soft);
+  border-color: #c8d8fa;
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .list {

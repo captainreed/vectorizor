@@ -46,9 +46,6 @@
 
 /* Axis key overlay */
 .key {
-  position: absolute;
-  top: 12px;
-  right: 12px;
   background: rgba(255, 255, 255, 0.72);
   backdrop-filter: blur(6px);
   border: 1px solid rgba(0, 0, 0, 0.08);
@@ -57,7 +54,6 @@
   padding: 8px 10px;
   font-size: 12px;
   min-width: 220px;
-  max-width: calc(100% - 24px);
 }
 
 .keyHead {
@@ -142,9 +138,7 @@
 }
 
 .pill {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  align-self: flex-end;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(6px);
   font-size: 12px;

@@ -21,6 +21,7 @@ import { IsolateCameraRig, PerspectiveCameraRig } from './CameraRig';
 
 export default function GraphCanvas() {
   const mode = useStore((s) => s.view.mode);
+  const vectorsOn = useStore((s) => s.view.vectors);
   const isolatePlane = useStore(selectIsolatePlane);
   const select = useStore((s) => s.select);
   const personOn = useStore((s) => s.modes.person);
@@ -81,14 +82,12 @@ export default function GraphCanvas() {
         <GridPlane key={p} plane={p} gap={gap} steps={steps} />
       ))}
       <Axes axes={axes} gap={gap} steps={steps} />
-      {/* In Push mode the arrows stand in for the points, so their dots are hidden. */}
-      {!pushOn && <PointDots options={markerOptions} />}
-      {(mode === 'vectors' || pushOn) && (
-        <Vectors
-          options={markerOptions}
-          sphere={sphere}
-          push={pushOn}
-        />
+      {/* Dots or arrows, never both: with Vectors on the arrows stand in for the dots (which stay as
+          invisible hover/click targets at the tips). In Push mode the arrows don't end at the points,
+          so the dots are dropped entirely. */}
+      {!pushOn && <PointDots options={markerOptions} hidden={vectorsOn} />}
+      {(vectorsOn || pushOn) && (
+        <Vectors options={markerOptions} sphere={sphere} push={pushOn} />
       )}
       {sphere && <PersonSphere position={sphere.center} radius={sphere.radius} />}
     </Canvas>

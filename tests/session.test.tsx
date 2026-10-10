@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import AuthDialog from '../src/components/sessions/AuthDialog';
 import SessionsDialog from '../src/components/sessions/SessionsDialog';
 import ShareDialog from '../src/components/sessions/ShareDialog';
+import QrPanel from '../src/components/sessions/QrPanel';
 import type { SessionRecord } from '../src/lib/api';
 import { EMPTY_DOCUMENT, useStore } from '../src/state/store';
 import { openSession, renameSession, saveSession, useSession } from '../src/state/session';
@@ -55,7 +56,7 @@ describe('session state', () => {
   });
 
   it('edits mark the session unsaved; camera/view changes do not', () => {
-    useStore.getState().setViewMode('vectors');
+    useStore.getState().toggleVectors();
     expect(useSession.getState().dirty).toBe(false);
     useStore.getState().addItem();
     expect(useSession.getState().dirty).toBe(true);
@@ -191,5 +192,37 @@ describe('auth dialog', () => {
       path: '/auth/register',
       body: { username: 'alice.smith+vz@example.com', password: 'S3cure!#$%^&*()pw' },
     });
+  });
+});
+
+describe('QR panel', () => {
+  it('shows a QR code for the share link of a public session', () => {
+    useSession.setState({ meta: record() });
+    render(<QrPanel />);
+    const url = `${window.location.origin}/s/abc123`;
+    const qr = screen.getByRole('img', { name: `QR code for ${url}` });
+    expect(qr.querySelector('path')?.getAttribute('d')).toMatch(/^M\d/);
+    expect(screen.getByText(url)).toBeVisible();
+  });
+
+  it('explains that a private or unsaved session has no QR code', async () => {
+    useSession.setState({ user: alice, meta: record({ isPublic: false }) });
+    const { unmount } = render(<QrPanel />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText(/private. Make it public/)).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /share options/i }));
+    expect(useSession.getState().dialog).toBe('share');
+    unmount();
+
+    useSession.setState({ user: null, meta: null });
+    render(<QrPanel />);
+    expect(screen.getByText(/Save this session and make it public/)).toBeVisible();
+  });
+
+  it("warns that a localhost link won't open on other devices", () => {
+    // jsdom serves tests from http://localhost:3000.
+    useSession.setState({ meta: record() });
+    render(<QrPanel />);
+    expect(screen.getByText(/other devices can't open/)).toBeVisible();
   });
 });

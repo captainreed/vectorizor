@@ -17,8 +17,10 @@ const sameSteps = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] =
 /**
  * Colored spheres for each visible item's markers: one per displayed plane and Compass diagonal,
  * or one 3D point in Single mode.
+ * `hidden` (Vectors on): the spheres aren't drawn but still catch hover/click at each arrow tip, so
+ * tooltips, selecting, and the selection ring keep working.
  */
-export default function PointDots({ options }: { options: MarkerOptions }) {
+export default function PointDots({ options, hidden = false }: { options: MarkerOptions; hidden?: boolean }) {
   const items = useStore((s) => s.items);
   const selectedId = useStore((s) => s.ui.selectedId);
   const select = useStore((s) => s.select);
@@ -73,7 +75,11 @@ export default function PointDots({ options }: { options: MarkerOptions }) {
                 }}
               >
                 <sphereGeometry args={[isSelected ? DOT_RADIUS * 1.25 : DOT_RADIUS, 24, 16]} />
-                <meshStandardMaterial color={item.color} roughness={0.45} metalness={0.05} />
+                {hidden ? (
+                  <meshBasicMaterial colorWrite={false} depthWrite={false} />
+                ) : (
+                  <meshStandardMaterial color={item.color} roughness={0.45} metalness={0.05} />
+                )}
               </mesh>
               {isSelected && (
                 <Billboard>

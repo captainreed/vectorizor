@@ -3,8 +3,9 @@ import styles from './TabBar.module.css';
 import { selectIsolatePlane, useStore } from '../state/store';
 import {
   MODE_IDS,
-  PLANE_IDS,
+  PRESETS,
   SESSION_NAME_MAX,
+  type DiagonalPlaneId,
   type IsolatePlane,
   type ModeId,
   type Preset,
@@ -39,20 +40,29 @@ const MODE_HINTS: Record<ModeId, string> = {
   result: 'Move the person to where the dots pulling on it like springs balance: their average position (turns on Person)',
 };
 
-type MenuId = 'preset' | 'isolate' | 'modes' | null;
+/** The plane each preset looks straight at (Isometric has none). */
+const PRESET_PLANE: Record<Preset, IsolatePlane | null> = { front: 'xy', top: 'xz', side: 'yz', iso: null };
+
+const COMPASS_PLANE_LABELS: Record<DiagonalPlaneId, string> = { 'ne-y': 'NE–Y plane', 'nw-y': 'NW–Y plane' };
+
+type MenuId = 'views' | 'modes' | null;
 
 export default function TabBar() {
   const view = useStore((s) => s.view);
-  const setViewMode = useStore((s) => s.setViewMode);
+  const toggleVectors = useStore((s) => s.toggleVectors);
   const setPreset = useStore((s) => s.setPreset);
   const setIsolatePlane = useStore((s) => s.setIsolatePlane);
   const modes = useStore((s) => s.modes);
   const toggleMode = useStore((s) => s.toggleMode);
   const modesOn = MODE_IDS.filter((m) => modes[m]).length;
   const isolatePlane = useStore(selectIsolatePlane);
-  // Compass planes can be isolated while they're shown (some item uses one of their diagonals).
+  // Compass planes can be isolated while they're shown (some item uses one of their diagonals);
+  // they have no preset, so their rows only offer Isolate.
   const items = useStore((s) => s.items);
-  const isolateChoices = [...PLANE_IDS, ...activeCompassPlanes(items)];
+  const viewRows: { label: string; preset?: Preset; plane: IsolatePlane | null }[] = [
+    ...PRESETS.map((p) => ({ label: PRESET_LABELS[p], preset: p, plane: PRESET_PLANE[p] })),
+    ...activeCompassPlanes(items).map((p) => ({ label: COMPASS_PLANE_LABELS[p], plane: p })),
+  ];
   const [menu, setMenu] = useState<MenuId>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -77,76 +87,81 @@ export default function TabBar() {
       <div className={styles.brand}>Vectorizor</div>
       <SessionName />
       <div className={styles.tabs}>
-        <nav className={styles.tabGroup} role="tablist" aria-label="View configuration">
-          <button role="tab" aria-selected={view.mode === 'free'} className={tabClass(view.mode === 'free')} onClick={() => setViewMode('free')}>
-            Free 3D
-          </button>
-          <button role="tab" aria-selected={view.mode === 'vectors'} className={tabClass(view.mode === 'vectors')} onClick={() => setViewMode('vectors')}>
-            Vectors
-          </button>
+        {/* Dots-only vs arrows is independent of the camera, so it stays put when a View is picked. */}
+        <button
+          role="switch"
+          aria-checked={view.vectors}
+          aria-label="Vectors"
+          title={view.vectors ? 'Showing vectors: switch to dots only (Free 3D)' : 'Showing dots only: switch to vectors'}
+          className={`${styles.tab} ${styles.displayToggle}`}
+          onClick={toggleVectors}
+        >
+          <span className={view.vectors ? '' : styles.toggleOn}>Free 3D</span>
+          <span className={styles.toggleSep} aria-hidden>
+            ⇄
+          </span>
+          <span className={view.vectors ? styles.toggleOn : ''}>Vectors</span>
+        </button>
 
           <div className={styles.menuWrap}>
             <button
-              role="tab"
-              aria-selected={view.mode === 'preset'}
               aria-haspopup="menu"
-              aria-expanded={menu === 'preset'}
-              className={tabClass(view.mode === 'preset')}
-              onClick={() => setMenu(menu === 'preset' ? null : 'preset')}
+              aria-expanded={menu === 'views'}
+              className={tabClass(view.mode === 'preset' || view.mode === 'isolate')}
+              onClick={() => setMenu(menu === 'views' ? null : 'views')}
             >
-              Presets{view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''} ▾
+              Views
+              {view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''}
+              {view.mode === 'isolate' ? `: Isolate ${PLANE_SHORT[isolatePlane]}` : ''} ▾
             </button>
-            {menu === 'preset' && (
-              <div className={styles.menu} role="menu">
-                {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
-                  <button
-                    key={p}
-                    role="menuitemradio"
-                    aria-checked={view.mode === 'preset' && view.preset === p}
-                    className={view.mode === 'preset' && view.preset === p ? styles.checked : ''}
-                    onClick={() => {
-                      setPreset(p);
-                      setMenu(null);
-                    }}
-                  >
-                    {PRESET_LABELS[p]}
-                  </button>
-                ))}
+            {menu === 'views' && (
+              // Two columns: the camera preset, and isolating that preset's plane.
+              <div className={`${styles.menu} ${styles.viewsMenu}`} role="menu" aria-label="Views">
+                {viewRows.map(({ label, preset, plane }) => {
+                  const presetOn = !!preset && view.mode === 'preset' && view.preset === preset;
+                  const planeOn = !!plane && view.mode === 'isolate' && isolatePlane === plane;
+                  return (
+                    <div key={label} className={styles.viewRow} role="group" aria-label={label}>
+                      {preset ? (
+                        <button
+                          role="menuitemradio"
+                          aria-checked={presetOn}
+                          className={presetOn ? styles.checked : ''}
+                          onClick={() => {
+                            setPreset(preset);
+                            setMenu(null);
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ) : (
+                        <span className={styles.viewLabel}>{label}</span>
+                      )}
+                      <span className={styles.viewDivider} aria-hidden>
+                        {plane ? '|' : ''}
+                      </span>
+                      {plane ? (
+                        <button
+                          role="menuitemradio"
+                          aria-checked={planeOn}
+                          aria-label={`Isolate ${PLANE_SHORT[plane]} plane`}
+                          className={planeOn ? styles.checked : ''}
+                          onClick={() => {
+                            setIsolatePlane(plane);
+                            setMenu(null);
+                          }}
+                        >
+                          Isolate
+                        </button>
+                      ) : (
+                        <span />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          <div className={styles.menuWrap}>
-            <button
-              role="tab"
-              aria-selected={view.mode === 'isolate'}
-              aria-haspopup="menu"
-              aria-expanded={menu === 'isolate'}
-              className={tabClass(view.mode === 'isolate')}
-              onClick={() => setMenu(menu === 'isolate' ? null : 'isolate')}
-            >
-              Isolate{view.mode === 'isolate' ? `: ${PLANE_SHORT[isolatePlane]}` : ''} ▾
-            </button>
-            {menu === 'isolate' && (
-              <div className={styles.menu} role="menu">
-                {isolateChoices.map((p) => (
-                  <button
-                    key={p}
-                    role="menuitemradio"
-                    aria-checked={view.mode === 'isolate' && isolatePlane === p}
-                    className={view.mode === 'isolate' && isolatePlane === p ? styles.checked : ''}
-                    onClick={() => {
-                      setIsolatePlane(p);
-                      setMenu(null);
-                    }}
-                  >
-                    {PLANE_SHORT[p]} plane
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </nav>
 
         {/* Modes are independent toggles layered on any view, so they sit outside the view tablist. */}
         <div className={styles.menuWrap}>

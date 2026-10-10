@@ -203,6 +203,33 @@ describe('single mode grid', () => {
   });
 });
 
+describe('vectors display', () => {
+  it('older saves in the old "vectors" camera mode load as a free camera with vectors on', () => {
+    const parsed = documentSchema.parse({
+      items: [],
+      axes: DEFAULT_AXES,
+      view: { mode: 'vectors', preset: 'iso', isolatePlane: 'xy' },
+    });
+    expect(parsed.view).toMatchObject({ mode: 'free', vectors: true });
+  });
+
+  it('defaults to dots only when a save has no vectors flag', () => {
+    const parsed = documentSchema.parse({
+      items: [],
+      axes: DEFAULT_AXES,
+      view: { mode: 'isolate', preset: 'iso', isolatePlane: 'yz' },
+    });
+    expect(parsed.view).toMatchObject({ mode: 'isolate', vectors: false });
+  });
+
+  it('presets and isolate leave vectors as they were', () => {
+    useStore.getState().toggleVectors();
+    useStore.getState().setPreset('front');
+    useStore.getState().setIsolatePlane('xz');
+    expect(useStore.getState().view).toMatchObject({ mode: 'isolate', vectors: true });
+  });
+});
+
 describe('compass planes and isolate', () => {
   it('a compass plane can only stay isolated while it is shown', () => {
     const id = useStore.getState().addItem();

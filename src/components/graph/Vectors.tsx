@@ -2,7 +2,6 @@ import { Line } from '@react-three/drei';
 import { Quaternion, Vector3 } from 'three';
 import { useStore } from '../../state/store';
 import { itemMarkers, outwardArrow, pushArrow, type MarkerOptions, type Sphere, type Vec3 } from '../../lib/coords';
-import { DOT_RADIUS } from './PointDots';
 
 const HEAD_LEN = 0.42;
 const HEAD_RADIUS = 0.13;
@@ -41,8 +40,8 @@ export default function Vectors({
                 <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />
               );
             }
-            // Stop just short of the dot's center so the head stays visible.
-            const arrow = outwardArrow(marker.world, sphere, DOT_RADIUS * 0.6);
+            // Dots aren't drawn alongside arrows, so the tip lands right on the point.
+            const arrow = outwardArrow(marker.world, sphere);
             if (!arrow) return null;
             return (
               <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />

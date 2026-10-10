@@ -13,7 +13,8 @@ export const PLANE_IDS = ['xy', 'xz', 'yz'] as const;
 export const DIAGONAL_PLANE_IDS = ['ne-y', 'nw-y'] as const;
 export const ISOLATE_PLANES = [...PLANE_IDS, ...DIAGONAL_PLANE_IDS] as const;
 export const PRESETS = ['front', 'top', 'side', 'iso'] as const;
-export const VIEW_MODES = ['free', 'vectors', 'preset', 'isolate'] as const;
+/** Camera modes. Whether arrows are drawn is separate (view.vectors), so it carries across views. */
+export const VIEW_MODES = ['free', 'preset', 'isolate'] as const;
 /** Independent on/off overlays, toggled from the Modes menu. */
 export const MODE_IDS = ['person', 'push', 'single', 'result'] as const;
 
@@ -140,13 +141,24 @@ export const axesSchema = z.object({
   unw: axisLabel.default(DEFAULT_DIAGONAL_LABELS.unw),
 });
 
-export const viewSchema = z.object({
-  mode: z.enum(VIEW_MODES),
-  preset: z.enum(PRESETS),
-  isolatePlane: z.enum(ISOLATE_PLANES),
-  /** Opacity multiplier for grid planes (0 hides them); axes are unaffected. */
-  gridOpacity: z.number().min(0).max(1).default(1),
-});
+/** "Vectors" used to be a camera mode of its own; it's now a free camera with vectors on. */
+function migrateLegacyView(raw: unknown): unknown {
+  if (!raw || typeof raw !== 'object' || (raw as { mode?: unknown }).mode !== 'vectors') return raw;
+  return { ...raw, mode: 'free', vectors: true };
+}
+
+export const viewSchema = z.preprocess(
+  migrateLegacyView,
+  z.object({
+    mode: z.enum(VIEW_MODES),
+    preset: z.enum(PRESETS),
+    isolatePlane: z.enum(ISOLATE_PLANES),
+    /** Draw each value as an arrow from the origin (on top of its dot), in every camera mode. */
+    vectors: z.boolean().default(false),
+    /** Opacity multiplier for grid planes (0 hides them); axes are unaffected. */
+    gridOpacity: z.number().min(0).max(1).default(1),
+  }),
+);
 
 // Modes and the person entity were added after v1 shipped; defaults keep older saves/exports valid.
 export const modesSchema = z.object({
@@ -208,7 +220,7 @@ export const DEFAULT_AXES: Axes = {
   ...DEFAULT_DIAGONAL_LABELS,
 };
 
-export const DEFAULT_VIEW: ViewState = { mode: 'free', preset: 'iso', isolatePlane: 'xy', gridOpacity: 1 };
+export const DEFAULT_VIEW: ViewState = { mode: 'free', preset: 'iso', isolatePlane: 'xy', vectors: false, gridOpacity: 1 };
 
 export const DEFAULT_MODES: Modes = { person: false, push: false, single: false, result: false };
 
