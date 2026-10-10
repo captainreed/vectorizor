@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { DoubleSide, Euler } from 'three';
 import { Line } from '@react-three/drei';
-import { STEP_MAX, STEP_MIN, type PlaneId } from '../../state/schema';
-import { PLANE_TINTS, planePointTo3D, type Vec3 } from '../../lib/coords';
+import type { PlaneId } from '../../state/schema';
+import { PLANE_TINTS, gridExtent, planePointTo3D, type Vec3 } from '../../lib/coords';
 
 const ROTATION: Record<PlaneId, Euler> = {
   xy: new Euler(0, 0, 0),
@@ -10,28 +10,29 @@ const ROTATION: Record<PlaneId, Euler> = {
   yz: new Euler(0, Math.PI / 2, 0),
 };
 
-const SIZE = STEP_MAX - STEP_MIN;
-
-/** One finite 10×10 grid plane centered on the origin. */
-export default function GridPlane({ plane }: { plane: PlaneId }) {
-  const at = (a: number, b: number): Vec3 => planePointTo3D(plane, { a, b });
+/** One finite grid plane spanning ±`steps` around the origin; `gap` widens the space around the origin. */
+export default function GridPlane({ plane, gap, steps }: { plane: PlaneId; gap: number; steps: number }) {
+  const at = (a: number, b: number): Vec3 => planePointTo3D(plane, { a, b }, gap);
+  const size = gridExtent(gap, steps) * 2;
+  const min = -steps;
+  const max = steps;
 
   const gridPositions = useMemo(() => {
     const pts: number[] = [];
-    for (let i = STEP_MIN + 1; i < STEP_MAX; i++) {
+    for (let i = min + 1; i < max; i++) {
       if (i === 0) continue; // axis lines are drawn separately
-      pts.push(...at(i, STEP_MIN), ...at(i, STEP_MAX));
-      pts.push(...at(STEP_MIN, i), ...at(STEP_MAX, i));
+      pts.push(...at(i, min), ...at(i, max));
+      pts.push(...at(min, i), ...at(max, i));
     }
     return new Float32Array(pts);
-  }, [plane]);
+  }, [plane, gap, steps]);
 
   const border: Vec3[] = [
-    at(STEP_MIN, STEP_MIN),
-    at(STEP_MAX, STEP_MIN),
-    at(STEP_MAX, STEP_MAX),
-    at(STEP_MIN, STEP_MAX),
-    at(STEP_MIN, STEP_MIN),
+    at(min, min),
+    at(max, min),
+    at(max, max),
+    at(min, max),
+    at(min, min),
   ];
 
   const tint = PLANE_TINTS[plane];
@@ -39,10 +40,11 @@ export default function GridPlane({ plane }: { plane: PlaneId }) {
   return (
     <group>
       <mesh rotation={ROTATION[plane]} renderOrder={-1}>
-        <planeGeometry args={[SIZE, SIZE]} />
+        <planeGeometry args={[size, size]} />
         <meshBasicMaterial color={tint} transparent opacity={0.05} side={DoubleSide} depthWrite={false} />
       </mesh>
-      <lineSegments>
+      {/* Keyed on size so the geometry (and its bounding sphere) is rebuilt when the grid resizes. */}
+      <lineSegments key={`${gap}-${steps}`}>
         <bufferGeometry>
           <bufferAttribute attach="attributes-position" args={[gridPositions, 3]} />
         </bufferGeometry>

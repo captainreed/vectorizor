@@ -2,8 +2,14 @@ import { create } from 'zustand';
 import { createJSONStorage, persist, type StateStorage } from 'zustand/middleware';
 import {
   DEFAULT_AXES,
+  DEFAULT_MODES,
+  DEFAULT_PERSON,
   DEFAULT_VIEW,
+  MODE_IDS,
+  MODE_REQUIRES,
   PALETTE,
+  PERSON_RADIUS,
+  STEP_MAX,
   clampStep,
   documentSchema,
   type AppDocument,
@@ -11,6 +17,8 @@ import {
   type AxisLabel,
   type Axes,
   type LineItem,
+  type ModeId,
+  type Person,
   type PlaneId,
   type Preset,
   type ViewMode,
@@ -43,6 +51,8 @@ interface Actions {
   setPreset: (preset: Preset) => void;
   setIsolatePlane: (plane: PlaneId) => void;
   resetCamera: () => void;
+  toggleMode: (mode: ModeId) => void;
+  setPersonPosition: (position: Person['position']) => void;
   replaceDocument: (doc: AppDocument) => void;
 }
 
@@ -123,6 +133,8 @@ export const useStore = create<AppState>()(
       items: [],
       axes: DEFAULT_AXES,
       view: DEFAULT_VIEW,
+      modes: DEFAULT_MODES,
+      person: DEFAULT_PERSON,
       ui: initialUi,
 
       addItem: () => {
@@ -187,11 +199,25 @@ export const useStore = create<AppState>()(
 
       resetCamera: () => set((s) => ({ ui: { ...s.ui, cameraNonce: s.ui.cameraNonce + 1 } })),
 
+      toggleMode: (mode) =>
+        set((s) => {
+          const on = !s.modes[mode];
+          const modes = { ...s.modes, [mode]: on };
+          // Keep dependencies consistent: on pulls in what it needs, off drops what needs it.
+          if (on) for (const r of MODE_REQUIRES[mode] ?? []) modes[r] = true;
+          else for (const m of MODE_IDS) if (MODE_REQUIRES[m]?.includes(mode)) modes[m] = false;
+          return { modes };
+        }),
+
+      setPersonPosition: (position) => set((s) => ({ person: { ...s.person, position } })),
+
       replaceDocument: (doc) =>
         set((s) => ({
           items: doc.items,
           axes: doc.axes,
           view: doc.view,
+          modes: doc.modes,
+          person: doc.person,
           ui: { ...initialUi, cameraNonce: s.ui.cameraNonce + 1 },
         })),
     }),
@@ -199,7 +225,7 @@ export const useStore = create<AppState>()(
       name: STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => throttledStorage()),
-      partialize: (s) => ({ items: s.items, axes: s.axes, view: s.view }),
+      partialize: (s) => ({ items: s.items, axes: s.axes, view: s.view, modes: s.modes, person: s.person }),
       merge: (persisted, current) => {
         const parsed = documentSchema.safeParse(persisted);
         if (!parsed.success) return current;
@@ -210,6 +236,12 @@ export const useStore = create<AppState>()(
 );
 
 export function getDocument(): AppDocument {
-  const { items, axes, view } = useStore.getState();
-  return { items, axes, view };
+  const { items, axes, view, modes, person } = useStore.getState();
+  return { items, axes, view, modes, person };
 }
+
+/** World-space gap between the origin and step ±1: room for the person sphere when it's shown. */
+export const selectAxisGap = (s: AppState): number => (s.modes.person ? PERSON_RADIUS : 0);
+
+/** Grid half-size in steps: Single mode sums two values per axis, so it doubles the range. */
+export const selectGridSteps = (s: AppState): number => (s.modes.single ? STEP_MAX * 2 : STEP_MAX);

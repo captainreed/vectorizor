@@ -3,24 +3,28 @@ import { Billboard, Html } from '@react-three/drei';
 import { DoubleSide } from 'three';
 import { useStore } from '../../state/store';
 import type { PlaneId } from '../../state/schema';
-import { formatPoint, planePointTo3D } from '../../lib/coords';
+import { itemMarkers, stepsToWorld, type Marker, type Vec3 } from '../../lib/coords';
 import styles from './Graph.module.css';
 
 export const DOT_RADIUS = 0.18;
 
 interface Hover {
   itemId: string;
-  plane: PlaneId;
+  markerId: Marker['id'];
 }
 
-/** Colored spheres for each visible item's point on each displayed plane. */
-export default function PointDots({ planes }: { planes: PlaneId[] }) {
+const sameSteps = (a: Vec3, b: Vec3) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+
+/** Colored spheres for each visible item's markers: one per displayed plane, or one 3D point in Single mode. */
+export default function PointDots({ planes, gap, single }: { planes: PlaneId[]; gap: number; single: boolean }) {
   const items = useStore((s) => s.items);
   const selectedId = useStore((s) => s.ui.selectedId);
   const select = useStore((s) => s.select);
   const [hover, setHover] = useState<Hover | null>(null);
 
-  const visible = items.filter((i) => i.visible);
+  const visible = items
+    .filter((i) => i.visible)
+    .map((item) => ({ item, markers: itemMarkers(item, planes, single) }));
 
   useEffect(() => {
     document.body.style.cursor = hover ? 'pointer' : '';
@@ -29,35 +33,38 @@ export default function PointDots({ planes }: { planes: PlaneId[] }) {
     };
   }, [hover]);
 
-  // Drop a stale hover if the item disappears.
-  const hoverItem = hover && visible.find((i) => i.id === hover.itemId && planes.includes(hover.plane));
+  // Drop a stale hover if the item or its marker disappears (e.g. Single toggled).
+  const markerFor = (itemId: string, markerId: Marker['id']) =>
+    visible.find((v) => v.item.id === itemId)?.markers.find((m) => m.id === markerId);
+  const hoverMarker = hover && markerFor(hover.itemId, hover.markerId);
 
-  let tooltip: { position: [number, number, number]; lines: { name: string; color: string }[]; coords: string } | null =
-    null;
-  if (hover && hoverItem) {
-    const p = hoverItem.points[hover.plane];
-    const sameSpot = visible.filter((i) => i.points[hover.plane].a === p.a && i.points[hover.plane].b === p.b);
+  let tooltip: { position: Vec3; lines: { name: string; color: string }[]; coords: string } | null = null;
+  if (hover && hoverMarker) {
+    const sameSpot = visible.filter(({ markers }) =>
+      markers.some((m) => m.id === hover.markerId && sameSteps(m.steps, hoverMarker.steps)),
+    );
     tooltip = {
-      position: planePointTo3D(hover.plane, p),
-      lines: sameSpot.map((i) => ({ name: i.name || 'Untitled', color: i.color })),
-      coords: `${hover.plane.toUpperCase()} ${formatPoint(p)}`,
+      position: stepsToWorld(hoverMarker.steps, gap),
+      lines: sameSpot.map(({ item }) => ({ name: item.name || 'Untitled', color: item.color })),
+      coords: hoverMarker.label,
     };
   }
 
   return (
     <group>
-      {visible.map((item) =>
-        planes.map((plane) => {
-          const pos = planePointTo3D(plane, item.points[plane]);
+      {visible.map(({ item, markers }) =>
+        markers.map((marker) => {
           const isSelected = item.id === selectedId;
           return (
-            <group key={`${item.id}-${plane}`} position={pos}>
+            <group key={`${item.id}-${marker.id}`} position={stepsToWorld(marker.steps, gap)}>
               <mesh
                 onPointerOver={(e) => {
                   e.stopPropagation();
-                  setHover({ itemId: item.id, plane });
+                  setHover({ itemId: item.id, markerId: marker.id });
                 }}
-                onPointerOut={() => setHover((h) => (h?.itemId === item.id && h.plane === plane ? null : h))}
+                onPointerOut={() =>
+                  setHover((h) => (h?.itemId === item.id && h.markerId === marker.id ? null : h))
+                }
                 onClick={(e) => {
                   e.stopPropagation();
                   select(item.id);

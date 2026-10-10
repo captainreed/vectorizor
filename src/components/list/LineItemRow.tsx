@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './List.module.css';
 import { useStore } from '../../state/store';
 import { DESCRIPTION_MAX, NAME_MAX, PLANE_IDS, type LineItem } from '../../state/schema';
-import { formatPoint } from '../../lib/coords';
+import { formatCoords, formatPoint, resultant } from '../../lib/coords';
 import SliderGrid from './SliderGrid';
 
 interface Props {
@@ -19,6 +19,7 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
   const setExpanded = useStore((s) => s.setExpanded);
   const updateItem = useStore((s) => s.updateItem);
   const deleteItem = useStore((s) => s.deleteItem);
+  const single = useStore((s) => s.modes.single);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [hexDraft, setHexDraft] = useState(item.color);
   const rowRef = useRef<HTMLLIElement>(null);
@@ -84,6 +85,7 @@ export default function LineItemRow({ item, expanded, selected, autoFocus }: Pro
                 {formatPoint(item.points[p])}
               </span>
             ))}
+            {single && <span className={styles.resultant}>XYZ{formatCoords(resultant(item.points))}</span>}
           </span>
         )}
         <span className={styles.spacer} />

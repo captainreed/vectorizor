@@ -2,15 +2,37 @@ import { Line } from '@react-three/drei';
 import { Quaternion, Vector3 } from 'three';
 import { useStore } from '../../state/store';
 import type { PlaneId } from '../../state/schema';
-import { planePointTo3D, type Vec3 } from '../../lib/coords';
+import { itemMarkers, pushArrow, stepsToWorld, type Vec3 } from '../../lib/coords';
 import { DOT_RADIUS } from './PointDots';
 
 const HEAD_LEN = 0.42;
 const HEAD_RADIUS = 0.13;
 const UP = new Vector3(0, 1, 0);
 
-/** Arrow from the origin to each of the item's points (one per displayed plane). */
-export default function Vectors({ planes }: { planes: PlaneId[] }) {
+/** Sphere the arrows push against in Push mode. */
+export interface PushTarget {
+  center: Vec3;
+  radius: number;
+}
+
+/**
+ * One arrow per item marker: per displayed plane, or a single 3D resultant in Single mode.
+ * - Default: from the origin to the marker's point.
+ * - Push (`push` set): the same vector slid back along its own direction until its tip touches the
+ *   outside of the sphere, so it reads as a force of that magnitude pushing on the sphere. The
+ *   length is the raw slider magnitude (unaffected by the Person-mode gap).
+ */
+export default function Vectors({
+  planes,
+  gap,
+  single,
+  push,
+}: {
+  planes: PlaneId[];
+  gap: number;
+  single: boolean;
+  push?: PushTarget | null;
+}) {
   const items = useStore((s) => s.items);
 
   return (
@@ -18,28 +40,45 @@ export default function Vectors({ planes }: { planes: PlaneId[] }) {
       {items
         .filter((i) => i.visible)
         .map((item) =>
-          planes.map((plane) => {
-            const tip = new Vector3(...planePointTo3D(plane, item.points[plane]));
-            const len = tip.length();
+          itemMarkers(item, planes, single).map((marker) => {
+            const key = `${item.id}-${marker.id}`;
+            if (push) {
+              const arrow = pushArrow(marker.steps, push.center, push.radius);
+              if (!arrow) return null; // no force
+              return (
+                <Arrow key={key} tail={new Vector3(...arrow.tail)} tip={new Vector3(...arrow.tip)} color={item.color} />
+              );
+            }
+            const point = new Vector3(...stepsToWorld(marker.steps, gap));
+            const len = point.length();
             if (len < 1e-6) return null; // zero-length vector: just the dot at the origin
-            const dir = tip.clone().normalize();
-            // Shrink the head for very short vectors so it doesn't overshoot the origin.
-            const head = Math.min(HEAD_LEN, len * 0.5);
-            const headTipDist = len - DOT_RADIUS * 0.6;
-            const headCenter = dir.clone().multiplyScalar(headTipDist - head / 2);
-            const shaftEnd = dir.clone().multiplyScalar(headTipDist - head * 0.9);
-            const quat = new Quaternion().setFromUnitVectors(UP, dir);
-            return (
-              <group key={`${item.id}-${plane}`}>
-                <Line points={[[0, 0, 0], shaftEnd.toArray() as Vec3]} color={item.color} lineWidth={3} />
-                <mesh position={headCenter} quaternion={quat} raycast={() => null}>
-                  <coneGeometry args={[HEAD_RADIUS * (head / HEAD_LEN), head, 20]} />
-                  <meshStandardMaterial color={item.color} roughness={0.5} />
-                </mesh>
-              </group>
-            );
+            // Stop just short of the dot's center so the head stays visible.
+            const tip = point.clone().addScaledVector(point.clone().normalize(), -DOT_RADIUS * 0.6);
+            return <Arrow key={key} tail={new Vector3()} tip={tip} color={item.color} />;
           }),
         )}
+    </group>
+  );
+}
+
+/** Shaft + cone head whose point lands exactly on `tip`. */
+function Arrow({ tail, tip, color }: { tail: Vector3; tip: Vector3; color: string }) {
+  const span = tip.clone().sub(tail);
+  const len = span.length();
+  if (len < 1e-6) return null;
+  const dir = span.normalize();
+  // Shrink the head for very short arrows so it doesn't overshoot the tail.
+  const head = Math.min(HEAD_LEN, len * 0.5);
+  const headCenter = tip.clone().addScaledVector(dir, -head / 2);
+  const shaftEnd = tip.clone().addScaledVector(dir, -head * 0.9);
+  const quat = new Quaternion().setFromUnitVectors(UP, dir);
+  return (
+    <group>
+      <Line points={[tail.toArray() as Vec3, shaftEnd.toArray() as Vec3]} color={color} lineWidth={3} />
+      <mesh position={headCenter} quaternion={quat} raycast={() => null}>
+        <coneGeometry args={[HEAD_RADIUS * (head / HEAD_LEN), head, 20]} />
+        <meshStandardMaterial color={color} roughness={0.5} />
+      </mesh>
     </group>
   );
 }

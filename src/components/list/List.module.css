@@ -93,6 +93,12 @@
   overflow: hidden;
 }
 
+/* Single mode: the combined 3D vector */
+.resultant {
+  color: var(--text);
+  font-weight: 600;
+}
+
 .spacer {
   flex: 1;
 }

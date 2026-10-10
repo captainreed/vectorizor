@@ -2,9 +2,11 @@ import { useEffect, useRef, useState } from 'react';
 import styles from './TabBar.module.css';
 import { getDocument, useStore } from '../state/store';
 import {
+  MODE_IDS,
   documentSchema,
   exportFileSchema,
   type AppDocument,
+  type ModeId,
   type PlaneId,
   type Preset,
 } from '../state/schema';
@@ -18,13 +20,24 @@ const PRESET_LABELS: Record<Preset, string> = {
 
 const PLANE_LABELS: Record<PlaneId, string> = { xy: 'XY plane', xz: 'XZ plane', yz: 'YZ plane' };
 
-type MenuId = 'preset' | 'isolate' | null;
+const MODE_LABELS: Record<ModeId, string> = { person: 'Person', push: 'Push', single: 'Single' };
+
+const MODE_HINTS: Record<ModeId, string> = {
+  person: 'Show a person sphere at the center',
+  push: 'Draw each vector as a force pushing on the person sphere (turns on Person)',
+  single: "Combine each item's three plane vectors into one 3D vector (their sum)",
+};
+
+type MenuId = 'preset' | 'isolate' | 'modes' | null;
 
 export default function TabBar() {
   const view = useStore((s) => s.view);
   const setViewMode = useStore((s) => s.setViewMode);
   const setPreset = useStore((s) => s.setPreset);
   const setIsolatePlane = useStore((s) => s.setIsolatePlane);
+  const modes = useStore((s) => s.modes);
+  const toggleMode = useStore((s) => s.toggleMode);
+  const modesOn = MODE_IDS.filter((m) => modes[m]).length;
   const [menu, setMenu] = useState<MenuId>(null);
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -47,76 +60,107 @@ export default function TabBar() {
   return (
     <div className={styles.bar} ref={barRef}>
       <div className={styles.brand}>Vectorizor</div>
-      <nav className={styles.tabs} role="tablist" aria-label="View configuration">
-        <button role="tab" aria-selected={view.mode === 'free'} className={tabClass(view.mode === 'free')} onClick={() => setViewMode('free')}>
-          Free 3D
-        </button>
-        <button role="tab" aria-selected={view.mode === 'vectors'} className={tabClass(view.mode === 'vectors')} onClick={() => setViewMode('vectors')}>
-          Vectors
-        </button>
+      <div className={styles.tabs}>
+        <nav className={styles.tabGroup} role="tablist" aria-label="View configuration">
+          <button role="tab" aria-selected={view.mode === 'free'} className={tabClass(view.mode === 'free')} onClick={() => setViewMode('free')}>
+            Free 3D
+          </button>
+          <button role="tab" aria-selected={view.mode === 'vectors'} className={tabClass(view.mode === 'vectors')} onClick={() => setViewMode('vectors')}>
+            Vectors
+          </button>
 
+          <div className={styles.menuWrap}>
+            <button
+              role="tab"
+              aria-selected={view.mode === 'preset'}
+              aria-haspopup="menu"
+              aria-expanded={menu === 'preset'}
+              className={tabClass(view.mode === 'preset')}
+              onClick={() => setMenu(menu === 'preset' ? null : 'preset')}
+            >
+              Presets{view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''} ▾
+            </button>
+            {menu === 'preset' && (
+              <div className={styles.menu} role="menu">
+                {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+                  <button
+                    key={p}
+                    role="menuitemradio"
+                    aria-checked={view.mode === 'preset' && view.preset === p}
+                    className={view.mode === 'preset' && view.preset === p ? styles.checked : ''}
+                    onClick={() => {
+                      setPreset(p);
+                      setMenu(null);
+                    }}
+                  >
+                    {PRESET_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className={styles.menuWrap}>
+            <button
+              role="tab"
+              aria-selected={view.mode === 'isolate'}
+              aria-haspopup="menu"
+              aria-expanded={menu === 'isolate'}
+              className={tabClass(view.mode === 'isolate')}
+              onClick={() => setMenu(menu === 'isolate' ? null : 'isolate')}
+            >
+              Isolate{view.mode === 'isolate' ? `: ${view.isolatePlane.toUpperCase()}` : ''} ▾
+            </button>
+            {menu === 'isolate' && (
+              <div className={styles.menu} role="menu">
+                {(Object.keys(PLANE_LABELS) as PlaneId[]).map((p) => (
+                  <button
+                    key={p}
+                    role="menuitemradio"
+                    aria-checked={view.mode === 'isolate' && view.isolatePlane === p}
+                    className={view.mode === 'isolate' && view.isolatePlane === p ? styles.checked : ''}
+                    onClick={() => {
+                      setIsolatePlane(p);
+                      setMenu(null);
+                    }}
+                  >
+                    {PLANE_LABELS[p]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </nav>
+
+        {/* Modes are independent toggles layered on any view, so they sit outside the view tablist. */}
         <div className={styles.menuWrap}>
           <button
-            role="tab"
-            aria-selected={view.mode === 'preset'}
             aria-haspopup="menu"
-            aria-expanded={menu === 'preset'}
-            className={tabClass(view.mode === 'preset')}
-            onClick={() => setMenu(menu === 'preset' ? null : 'preset')}
+            aria-expanded={menu === 'modes'}
+            className={tabClass(modesOn > 0)}
+            onClick={() => setMenu(menu === 'modes' ? null : 'modes')}
           >
-            Presets{view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''} ▾
+            Modes{modesOn > 0 ? ` (${modesOn})` : ''} ▾
           </button>
-          {menu === 'preset' && (
+          {menu === 'modes' && (
             <div className={styles.menu} role="menu">
-              {(Object.keys(PRESET_LABELS) as Preset[]).map((p) => (
+              {MODE_IDS.map((m) => (
                 <button
-                  key={p}
-                  role="menuitemradio"
-                  aria-checked={view.mode === 'preset' && view.preset === p}
-                  className={view.mode === 'preset' && view.preset === p ? styles.checked : ''}
-                  onClick={() => {
-                    setPreset(p);
-                    setMenu(null);
-                  }}
+                  key={m}
+                  role="menuitemcheckbox"
+                  aria-checked={modes[m]}
+                  title={MODE_HINTS[m]}
+                  className={`${styles.toggleItem} ${modes[m] ? styles.checked : ''}`}
+                  onClick={() => toggleMode(m)}
                 >
-                  {PRESET_LABELS[p]}
+                  <span>{MODE_LABELS[m]}</span>
+                  <span className={`${styles.switch} ${modes[m] ? styles.switchOn : ''}`} aria-hidden />
                 </button>
               ))}
             </div>
           )}
         </div>
-
-        <div className={styles.menuWrap}>
-          <button
-            role="tab"
-            aria-selected={view.mode === 'isolate'}
-            aria-haspopup="menu"
-            aria-expanded={menu === 'isolate'}
-            className={tabClass(view.mode === 'isolate')}
-            onClick={() => setMenu(menu === 'isolate' ? null : 'isolate')}
-          >
-            Isolate{view.mode === 'isolate' ? `: ${view.isolatePlane.toUpperCase()}` : ''} ▾
-          </button>
-          {menu === 'isolate' && (
-            <div className={styles.menu} role="menu">
-              {(Object.keys(PLANE_LABELS) as PlaneId[]).map((p) => (
-                <button
-                  key={p}
-                  role="menuitemradio"
-                  aria-checked={view.mode === 'isolate' && view.isolatePlane === p}
-                  className={view.mode === 'isolate' && view.isolatePlane === p ? styles.checked : ''}
-                  onClick={() => {
-                    setIsolatePlane(p);
-                    setMenu(null);
-                  }}
-                >
-                  {PLANE_LABELS[p]}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </nav>
+      </div>
       <ImportExport />
     </div>
   );

@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { OrthographicCamera, Vector3 } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import { useStore } from '../../state/store';
-import type { PlaneId, Preset } from '../../state/schema';
+import { STEP_MAX, type PlaneId, type Preset } from '../../state/schema';
 import type { Vec3 } from '../../lib/coords';
 
 const PRESET_POSES: Record<Preset, Vec3> = {
@@ -17,7 +17,7 @@ const ANIM_MS = 400;
 const ease = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /** Animates the perspective camera to presets and handles "Reset view". */
-export function PerspectiveCameraRig() {
+export function PerspectiveCameraRig({ extent }: { extent: number }) {
   const camera = useThree((s) => s.camera);
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const mode = useStore((s) => s.view.mode);
@@ -25,24 +25,37 @@ export function PerspectiveCameraRig() {
   const nonce = useStore((s) => s.ui.cameraNonce);
   const anim = useRef<{ from: Vector3; fromTarget: Vector3; to: Vector3; start: number } | null>(null);
   const first = useRef(true);
+  const lastExtent = useRef(extent);
 
-  useEffect(() => {
-    const pose = mode === 'preset' ? PRESET_POSES[preset] : PRESET_POSES.iso;
-    const to = new Vector3(...pose);
-    if (first.current) {
-      // Restore the saved preset instantly on load, no animation.
-      first.current = false;
-      if (mode === 'preset') camera.position.copy(to);
-      return;
-    }
+  const animateTo = (to: Vector3) => {
     anim.current = {
       from: camera.position.clone(),
       fromTarget: controls?.target.clone() ?? new Vector3(),
       to,
       start: performance.now(),
     };
+  };
+
+  useEffect(() => {
+    const pose = mode === 'preset' ? PRESET_POSES[preset] : PRESET_POSES.iso;
+    // Poses are tuned for the default grid; pull back proportionally when the grid is enlarged.
+    const to = new Vector3(...pose).multiplyScalar(extent / STEP_MAX);
+    if (first.current) {
+      // Restore the saved preset (or the default iso pose, sized to the grid) instantly on load.
+      first.current = false;
+      camera.position.copy(to);
+      return;
+    }
+    animateTo(to);
     // Re-run whenever the user picks a preset (even the same one) or presses reset.
   }, [nonce, mode === 'preset' ? preset : null]);
+
+  useEffect(() => {
+    // Grid resized by a mode toggle: keep the current angle, scale the distance to match.
+    const ratio = extent / lastExtent.current;
+    lastExtent.current = extent;
+    if (ratio !== 1) animateTo(camera.position.clone().multiplyScalar(ratio));
+  }, [extent]);
 
   useFrame(() => {
     const a = anim.current;
@@ -69,7 +82,7 @@ const ISO_POSE: Record<PlaneId, { position: Vec3; up: Vec3 }> = {
 };
 
 /** Points the orthographic camera straight at the isolated plane and fits it to the viewport. */
-export function IsolateCameraRig({ plane }: { plane: PlaneId }) {
+export function IsolateCameraRig({ plane, extent }: { plane: PlaneId; extent: number }) {
   const camera = useThree((s) => s.camera) as OrthographicCamera;
   const controls = useThree((s) => s.controls) as OrbitControlsImpl | null;
   const size = useThree((s) => s.size);
@@ -79,15 +92,16 @@ export function IsolateCameraRig({ plane }: { plane: PlaneId }) {
     const pose = ISO_POSE[plane];
     camera.up.set(...pose.up);
     camera.position.set(...pose.position);
-    camera.zoom = Math.max(10, Math.min(size.width, size.height) / 14);
+    // Fit the grid plus ~2 units of margin for the axis labels.
+    camera.zoom = Math.max(4, Math.min(size.width, size.height) / (2 * (extent + 2)));
     camera.lookAt(0, 0, 0);
     camera.updateProjectionMatrix();
     if (controls) {
       controls.target.set(0, 0, 0);
       controls.update();
     }
-    // Fit only on plane change / reset / first mount, not on every resize.
-  }, [plane, nonce, controls, camera]);
+    // Fit only on plane change / grid resize / reset / first mount, not on every resize.
+  }, [plane, extent, nonce, controls, camera]);
 
   return null;
 }
