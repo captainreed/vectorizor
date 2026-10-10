@@ -1,6 +1,8 @@
 .app {
   display: grid;
   grid-template-rows: 10vh 60vh 30vh;
+  /* minmax(0, …) so a wide child can never stretch the page past the screen. */
+  grid-template-columns: minmax(0, 1fr);
   height: 100vh;
 }
 
@@ -69,4 +71,36 @@
   background: var(--panel);
   display: flex;
   flex-direction: column;
+}
+
+@media (max-width: 700px) {
+  /* Phones: a slim header, the graph takes what's left, the list keeps 30%. dvh tracks the
+     browser's collapsing address bar. */
+  .app {
+    grid-template-rows: 56px minmax(0, 1fr) 30vh;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .tabs {
+    padding: 0 8px 0 12px;
+  }
+
+  .overlays {
+    top: 8px;
+    right: 8px;
+    max-width: calc(100% - 16px);
+    max-height: calc(100% - 56px);
+  }
+
+  .viewButtons {
+    left: 8px;
+    bottom: 8px;
+  }
+
+  .viewButtons button {
+    min-height: 36px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }

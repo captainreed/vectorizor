@@ -21,6 +21,7 @@ import {
   useSession,
 } from '../state/session';
 import { activeCompassPlanes } from '../lib/coords';
+import { useIsMobile } from '../lib/useMediaQuery';
 
 const PRESET_LABELS: Record<Preset, string> = {
   front: 'Front (XY)',
@@ -65,20 +66,47 @@ export default function TabBar() {
   ];
   const [menu, setMenu] = useState<MenuId>(null);
   const barRef = useRef<HTMLDivElement>(null);
+  // Phones: every control lives in one ☰ panel that opens over the page, with Views and Modes
+  // listed inline instead of as dropdowns.
+  const isMobile = useIsMobile();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const inDrawer = isMobile && drawerOpen;
+  const dialog = useSession((s) => s.dialog);
 
   useEffect(() => {
-    if (!menu) return;
+    if (!isMobile) setDrawerOpen(false);
+  }, [isMobile]);
+
+  // Opening a dialog (Sessions, Share, Log in) from the panel closes the panel behind it.
+  useEffect(() => {
+    if (dialog) setDrawerOpen(false);
+  }, [dialog]);
+
+  useEffect(() => {
+    if (!menu && !drawerOpen) return;
     const onDown = (e: PointerEvent) => {
-      if (!barRef.current?.contains(e.target as Node)) setMenu(null);
+      if (barRef.current?.contains(e.target as Node)) return;
+      setMenu(null);
+      setDrawerOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setMenu(null);
+      setDrawerOpen(false);
+    };
     window.addEventListener('pointerdown', onDown);
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('pointerdown', onDown);
       window.removeEventListener('keydown', onKey);
     };
-  }, [menu]);
+  }, [menu, drawerOpen]);
+
+  const menuShown = (id: Exclude<MenuId, null>) => inDrawer || menu === id;
+  const closeMenus = () => {
+    setMenu(null);
+    setDrawerOpen(false);
+  };
 
   const tabClass = (active: boolean) => `${styles.tab} ${active ? styles.active : ''}`;
 
@@ -86,35 +114,50 @@ export default function TabBar() {
     <div className={styles.bar} ref={barRef}>
       <div className={styles.brand}>Vectorizor</div>
       <SessionName />
-      <div className={styles.tabs}>
-        {/* Dots-only vs arrows is independent of the camera, so it stays put when a View is picked. */}
-        <button
-          role="switch"
-          aria-checked={view.vectors}
-          aria-label="Vectors"
-          title={view.vectors ? 'Showing vectors: switch to dots only (Free 3D)' : 'Showing dots only: switch to vectors'}
-          className={`${styles.tab} ${styles.displayToggle}`}
-          onClick={toggleVectors}
-        >
-          <span className={view.vectors ? '' : styles.toggleOn}>Free 3D</span>
-          <span className={styles.toggleSep} aria-hidden>
-            ⇄
-          </span>
-          <span className={view.vectors ? styles.toggleOn : ''}>Vectors</span>
-        </button>
+      <Notice />
+      <button
+        className={`${styles.burger} ${drawerOpen ? styles.burgerOpen : ''}`}
+        aria-label="Menu"
+        aria-expanded={drawerOpen}
+        aria-controls="app-controls"
+        onClick={() => setDrawerOpen(!drawerOpen)}
+      >
+        {drawerOpen ? '✕' : '☰'}
+      </button>
+      <div id="app-controls" className={`${styles.controls} ${drawerOpen ? styles.controlsOpen : ''}`}>
+        <div className={styles.tabs}>
+          {/* Dots-only vs arrows is independent of the camera, so it stays put when a View is picked. */}
+          <button
+            role="switch"
+            aria-checked={view.vectors}
+            aria-label="Vectors"
+            title={view.vectors ? 'Showing vectors: switch to dots only (Free 3D)' : 'Showing dots only: switch to vectors'}
+            className={`${styles.tab} ${styles.displayToggle}`}
+            onClick={toggleVectors}
+          >
+            <span className={view.vectors ? '' : styles.toggleOn}>Free 3D</span>
+            <span className={styles.toggleSep} aria-hidden>
+              ⇄
+            </span>
+            <span className={view.vectors ? styles.toggleOn : ''}>Vectors</span>
+          </button>
 
           <div className={styles.menuWrap}>
-            <button
-              aria-haspopup="menu"
-              aria-expanded={menu === 'views'}
-              className={tabClass(view.mode === 'preset' || view.mode === 'isolate')}
-              onClick={() => setMenu(menu === 'views' ? null : 'views')}
-            >
-              Views
-              {view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''}
-              {view.mode === 'isolate' ? `: Isolate ${PLANE_SHORT[isolatePlane]}` : ''} ▾
-            </button>
-            {menu === 'views' && (
+            {inDrawer ? (
+              <div className={styles.drawerHeading}>Views</div>
+            ) : (
+              <button
+                aria-haspopup="menu"
+                aria-expanded={menu === 'views'}
+                className={tabClass(view.mode === 'preset' || view.mode === 'isolate')}
+                onClick={() => setMenu(menu === 'views' ? null : 'views')}
+              >
+                Views
+                {view.mode === 'preset' ? `: ${PRESET_LABELS[view.preset]}` : ''}
+                {view.mode === 'isolate' ? `: Isolate ${PLANE_SHORT[isolatePlane]}` : ''} ▾
+              </button>
+            )}
+            {menuShown('views') && (
               // Two columns: the camera preset, and isolating that preset's plane.
               <div className={`${styles.menu} ${styles.viewsMenu}`} role="menu" aria-label="Views">
                 {viewRows.map(({ label, preset, plane }) => {
@@ -129,7 +172,7 @@ export default function TabBar() {
                           className={presetOn ? styles.checked : ''}
                           onClick={() => {
                             setPreset(preset);
-                            setMenu(null);
+                            closeMenus();
                           }}
                         >
                           {label}
@@ -148,7 +191,7 @@ export default function TabBar() {
                           className={planeOn ? styles.checked : ''}
                           onClick={() => {
                             setIsolatePlane(plane);
-                            setMenu(null);
+                            closeMenus();
                           }}
                         >
                           Isolate
@@ -163,37 +206,63 @@ export default function TabBar() {
             )}
           </div>
 
-        {/* Modes are independent toggles layered on any view, so they sit outside the view tablist. */}
-        <div className={styles.menuWrap}>
-          <button
-            aria-haspopup="menu"
-            aria-expanded={menu === 'modes'}
-            className={tabClass(modesOn > 0)}
-            onClick={() => setMenu(menu === 'modes' ? null : 'modes')}
-          >
-            Modes{modesOn > 0 ? ` (${modesOn})` : ''} ▾
-          </button>
-          {menu === 'modes' && (
-            <div className={styles.menu} role="menu">
-              {MODE_IDS.map((m) => (
-                <button
-                  key={m}
-                  role="menuitemcheckbox"
-                  aria-checked={modes[m]}
-                  title={MODE_HINTS[m]}
-                  className={`${styles.toggleItem} ${modes[m] ? styles.checked : ''}`}
-                  onClick={() => toggleMode(m)}
-                >
-                  <span>{MODE_LABELS[m]}</span>
-                  <span className={`${styles.switch} ${modes[m] ? styles.switchOn : ''}`} aria-hidden />
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Modes are independent toggles layered on any view, so they sit outside the view tablist. */}
+          <div className={styles.menuWrap}>
+            {inDrawer ? (
+              <div className={styles.drawerHeading}>Modes</div>
+            ) : (
+              <button
+                aria-haspopup="menu"
+                aria-expanded={menu === 'modes'}
+                className={tabClass(modesOn > 0)}
+                onClick={() => setMenu(menu === 'modes' ? null : 'modes')}
+              >
+                Modes{modesOn > 0 ? ` (${modesOn})` : ''} ▾
+              </button>
+            )}
+            {menuShown('modes') && (
+              <div className={styles.menu} role="menu" aria-label="Modes">
+                {MODE_IDS.map((m) => (
+                  <button
+                    key={m}
+                    role="menuitemcheckbox"
+                    aria-checked={modes[m]}
+                    title={MODE_HINTS[m]}
+                    className={`${styles.toggleItem} ${modes[m] ? styles.checked : ''}`}
+                    onClick={() => toggleMode(m)}
+                  >
+                    <span>{MODE_LABELS[m]}</span>
+                    <span className={`${styles.switch} ${modes[m] ? styles.switchOn : ''}`} aria-hidden />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+        <SessionControls inDrawer={inDrawer} />
       </div>
-      <SessionControls />
     </div>
+  );
+}
+
+/** Session messages ("Saved.", errors), floating under the bar; outside the ☰ panel so they show either way. */
+function Notice() {
+  const notice = useSession((s) => s.notice);
+
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), notice.kind === 'error' ? 8000 : 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  if (!notice) return null;
+  return (
+    <span
+      className={`${styles.toast} ${notice.kind === 'error' ? styles.error : ''}`}
+      role={notice.kind === 'error' ? 'alert' : 'status'}
+    >
+      {notice.text}
+    </span>
   );
 }
 
@@ -222,21 +291,16 @@ function SessionName() {
   );
 }
 
-function SessionControls() {
+function SessionControls({ inDrawer }: { inDrawer: boolean }) {
   const user = useSession((s) => s.user);
   const meta = useSession((s) => s.meta);
   const dirty = useSession((s) => s.dirty);
   const busy = useSession((s) => s.busy);
-  const notice = useSession((s) => s.notice);
   const isOwner = useSession(selectIsOwner);
-  const [accountOpen, setAccountOpen] = useState(false);
+  const [accountMenuOpen, setAccountOpen] = useState(false);
+  // In the ☰ panel the account actions are simply listed.
+  const accountOpen = accountMenuOpen || inDrawer;
   const accountRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!notice) return;
-    const t = setTimeout(() => setNotice(null), notice.kind === 'error' ? 8000 : 4000);
-    return () => clearTimeout(t);
-  }, [notice]);
 
   useEffect(() => {
     if (!accountOpen) return;
@@ -257,14 +321,6 @@ function SessionControls() {
 
   return (
     <div className={styles.io}>
-      {notice && (
-        <span
-          className={`${styles.toast} ${notice.kind === 'error' ? styles.error : ''}`}
-          role={notice.kind === 'error' ? 'alert' : 'status'}
-        >
-          {notice.text}
-        </span>
-      )}
       <button onClick={() => openDialog('sessions')} title="Browse public and saved sessions">
         ☰ Sessions
       </button>
@@ -283,6 +339,11 @@ function SessionControls() {
       )}
       {user ? (
         <div className={styles.menuWrap} ref={accountRef}>
+          {inDrawer ? (
+            <div className={styles.drawerHeading} title={user.username}>
+              Signed in as <span className={styles.accountName}>{user.username}</span>
+            </div>
+          ) : (
           <button
             className={styles.account}
             aria-haspopup="menu"
@@ -292,6 +353,7 @@ function SessionControls() {
           >
             <span className={styles.accountName}>{user.username}</span> ▾
           </button>
+          )}
           {accountOpen && (
             <div className={`${styles.menu} ${styles.menuRight}`} role="menu">
               <button

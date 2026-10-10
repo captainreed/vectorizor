@@ -1,0 +1,56 @@
+# Keeps vectordemo.duckdns.org pointed at this network's public IP: every 5 minutes, compare the
+# public IP with what the name resolves to and update DuckDNS only when they differ.
+#
+# Needs two things deploy/deploy.sh sets up:
+#   - ConfigMap duckdns-script, from deploy/duckdns-update.sh
+#   - Secret duckdns-token (key: token), created once by hand; see deploy/README.md
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: duckdns-updater
+  namespace: personal
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 101
+          containers:
+            - name: duckdns
+              image: curlimages/curl:8.16.0
+              command: ["sh", "/scripts/duckdns-update.sh"]
+              env:
+                - name: DUCKDNS_DOMAIN
+                  value: vectordemo
+                - name: DUCKDNS_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: duckdns-token
+                      key: token
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]
+          volumes:
+            - name: script
+              configMap:
+                name: duckdns-script

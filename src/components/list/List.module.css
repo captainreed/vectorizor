@@ -279,12 +279,53 @@
 }
 
 @media (max-width: 700px) {
+  .toolbar {
+    padding: 6px 12px;
+  }
+
+  .list {
+    padding: 4px 8px 12px;
+  }
+
+  .header {
+    gap: 8px;
+    padding: 6px 8px;
+    min-height: 44px;
+  }
+
+  .name {
+    max-width: none;
+    min-width: 0;
+    flex: 1;
+  }
+
+  .spacer {
+    display: none;
+  }
+
+  /* One column that can't grow past the screen; sliders two to a row. */
   .editor {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 8px 10px 12px;
+  }
+
+  .axisGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 14px;
+  }
+
+  .inlineFields {
+    flex-wrap: wrap;
   }
 
   .summary {
     display: none;
+  }
+
+  /* Bigger slider thumbs for fingers. */
+  .slider input[type='range'] {
+    height: 28px;
   }
 }
 

@@ -84,7 +84,7 @@ function summary(r: SessionRow) {
  * The JSON API, mounted under /api. Requests outside /api fall through to `next`, so this can sit
  * in front of Vite's dev/preview server.
  */
-export function createApiApp({ dbPath }: { dbPath: string }) {
+export function createApiApp({ dbPath, trustProxy = false }: { dbPath: string; trustProxy?: boolean }) {
   const db = openDb(dbPath);
   const loginLimiter = createLimiter(20, 15 * 60 * 1000);
 
@@ -132,12 +132,13 @@ export function createApiApp({ dbPath }: { dbPath: string }) {
     return user;
   };
 
-  const startLogin = (res: Response, user: UserRow) => {
+  const startLogin = (req: Request, res: Response, user: UserRow) => {
     q.purgeTokens.run(Date.now());
     const token = randomId(32);
     q.insertToken.run(hashToken(token), user.id, Date.now() + TOKEN_TTL_MS);
     // Lax keeps the cookie off cross-site POSTs; the API also only accepts JSON bodies.
-    res.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax', maxAge: TOKEN_TTL_MS, path: '/' });
+    // Secure whenever the request came in over HTTPS (behind the ingress, per X-Forwarded-Proto).
+    res.cookie(COOKIE_NAME, token, { httpOnly: true, sameSite: 'lax', secure: req.secure, maxAge: TOKEN_TTL_MS, path: '/' });
     res.json({ user: { id: user.id, username: user.username } });
   };
 
@@ -169,6 +170,11 @@ export function createApiApp({ dbPath }: { dbPath: string }) {
   const api = express.Router();
   api.use(express.json({ limit: '1mb' }));
 
+  api.get('/health', (_req, res) => {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true });
+  });
+
   api.get('/auth/me', (req, res) => {
     res.json({ user: currentUser(req) });
   });
@@ -178,19 +184,21 @@ export function createApiApp({ dbPath }: { dbPath: string }) {
     if (q.userByName.get(username)) throw new HttpError(409, 'That username is taken.');
     const user = { id: randomId(), username };
     q.insertUser.run(user.id, username, hashPassword(password), new Date().toISOString());
-    startLogin(res, user);
+    startLogin(req, res, user);
   });
 
   api.post('/auth/login', (req, res) => {
-    const key = req.ip ?? 'unknown';
-    if (loginLimiter.blocked(key)) throw new HttpError(429, 'Too many failed logins. Try again later.');
     const body = z.object({ username: z.string().trim(), password: z.string() }).safeParse(req.body);
+    // Per client and account: behind a load balancer the client IP may be shared by everyone, and
+    // keying on it alone would let one person's failures lock all users out.
+    const key = `${req.ip ?? 'unknown'}|${body.success ? body.data.username.toLowerCase() : ''}`;
+    if (loginLimiter.blocked(key)) throw new HttpError(429, 'Too many failed logins. Try again later.');
     const row = body.success ? q.userByName.get(body.data.username) : undefined;
     if (!body.success || !row || !verifyPassword(body.data.password, row.password_hash)) {
       loginLimiter.hit(key);
       throw new HttpError(401, 'Wrong username or password.');
     }
-    startLogin(res, row);
+    startLogin(req, res, row);
   });
 
   api.post('/auth/logout', (req, res) => {
@@ -261,6 +269,9 @@ export function createApiApp({ dbPath }: { dbPath: string }) {
 
   const app = express();
   app.disable('x-powered-by');
+  // Behind a reverse proxy (the k8s ingress), take the client IP and scheme from its X-Forwarded-*
+  // headers, so login throttling is per visitor and cookies can be marked Secure.
+  if (trustProxy) app.set('trust proxy', 1);
   app.use('/api', api);
   return Object.assign(app, { close: () => db.close() });
 }

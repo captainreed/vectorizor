@@ -1,0 +1,15 @@
+# Inside the cluster, resolve vectordemo.duckdns.org straight to Traefik. The router doesn't loop
+# requests to its own public IP back in (no hairpin NAT), so without this cert-manager's HTTP-01
+# self-check, and any pod calling the public URL, can't reach the site. Outside visitors are
+# unaffected. k3s's CoreDNS imports *.override files from this ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+data:
+  vectordemo.override: |
+    rewrite stop {
+      name exact vectordemo.duckdns.org traefik.kube-system.svc.cluster.local
+      answer name traefik.kube-system.svc.cluster.local vectordemo.duckdns.org
+    }

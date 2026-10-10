@@ -13,6 +13,7 @@ import {
   type DiagonalId,
 } from '../../state/schema';
 import { AXIS_COLORS } from '../../lib/coords';
+import { isMobileNow } from '../../lib/useMediaQuery';
 
 const FIELDS: { key: keyof AxisLabel; label: string }[] = [
   { key: 'name', label: 'Axis' },
@@ -30,7 +31,8 @@ export default function AxisKey() {
   const items = useStore((s) => s.items);
   const gridOpacity = useStore((s) => s.view.gridOpacity);
   const setGridOpacity = useStore((s) => s.setGridOpacity);
-  const [collapsed, setCollapsed] = useState(false);
+  // Phones start with the key hidden so the graph is visible; tap "Key" to toggle it.
+  const [collapsed, setCollapsed] = useState(isMobileNow);
   const [showMore, setShowMore] = useState(false);
   const snapshot = useRef<Axes | null>(null);
   // X/Y/Z always; a diagonal appears once a visible item uses it, or all of them under "More".
@@ -40,7 +42,7 @@ export default function AxisKey() {
 
   if (collapsed) {
     return (
-      <button className={styles.pill} onClick={() => setCollapsed(false)} aria-label="Show axis key">
+      <button className={styles.pill} onClick={() => setCollapsed(false)} aria-expanded={false} title="Show the axis key">
         Key ▾
       </button>
     );
@@ -80,7 +82,15 @@ export default function AxisKey() {
       }}
     >
       <div className={styles.keyHead}>
-        <span>Key</span>
+        <button
+          className={styles.keyTitle}
+          onClick={() => setCollapsed(true)}
+          aria-expanded
+          title="Hide the axis key"
+          disabled={editing}
+        >
+          Key ▴
+        </button>
         <input
           type="range"
           className={styles.gridOpacity}
@@ -98,9 +108,6 @@ export default function AxisKey() {
             ✎
           </button>
         )}
-        <button className="icon" onClick={() => setCollapsed(true)} title="Hide key" aria-label="Hide axis key">
-          ▴
-        </button>
       </div>
       <table className={styles.keyTable}>
         <thead>

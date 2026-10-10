@@ -24,6 +24,7 @@ export function PerspectiveCameraRig({ extent }: { extent: number }) {
   const mode = useStore((s) => s.view.mode);
   const preset = useStore((s) => s.view.preset);
   const nonce = useStore((s) => s.ui.cameraNonce);
+  const size = useThree((s) => s.size);
   const anim = useRef<{ from: Vector3; fromTarget: Vector3; to: Vector3; start: number } | null>(null);
   const first = useRef(true);
   const lastExtent = useRef(extent);
@@ -39,8 +40,11 @@ export function PerspectiveCameraRig({ extent }: { extent: number }) {
 
   useEffect(() => {
     const pose = mode === 'preset' ? PRESET_POSES[preset] : PRESET_POSES.iso;
-    // Poses are tuned for the default grid; pull back proportionally when the grid is enlarged.
-    const to = new Vector3(...pose).multiplyScalar(extent / STEP_MAX);
+    // Poses are tuned for the default grid on a landscape canvas; pull back proportionally when the
+    // grid is enlarged, and on a portrait canvas (phones), where width rather than height is the
+    // limit, so the whole grid still fits side to side.
+    const aspect = size.width / Math.max(1, size.height);
+    const to = new Vector3(...pose).multiplyScalar((extent / STEP_MAX) * Math.max(1, 1.12 / aspect));
     if (first.current) {
       // Restore the saved preset (or the default iso pose, sized to the grid) instantly on load.
       first.current = false;

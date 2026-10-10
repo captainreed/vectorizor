@@ -1,0 +1,31 @@
+# Let's Encrypt issuers for cert-manager, solving HTTP-01 challenges through Traefik.
+# Cluster-wide, so any namespace's Ingress can use them via the cert-manager.io/cluster-issuer
+# annotation. Add `email:` under `acme:` to get certificate-expiry notices from Let's Encrypt.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-prod-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik
+---
+# For testing without hitting production rate limits (certificates aren't browser-trusted).
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-staging-account
+    solvers:
+      - http01:
+          ingress:
+            ingressClassName: traefik

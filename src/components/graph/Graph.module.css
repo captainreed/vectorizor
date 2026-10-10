@@ -64,8 +64,24 @@
   margin-bottom: 4px;
 }
 
-.keyHead > span {
+/* "Key ▴" title doubles as the hide toggle (the collapsed pill shows it again). */
+.keyTitle {
   flex: 1;
+  border: none;
+  background: none;
+  padding: 2px 4px 2px 0;
+  font-weight: 700;
+  text-align: left;
+}
+
+.keyTitle:hover {
+  background: none;
+  color: var(--accent);
+}
+
+.keyTitle:disabled {
+  cursor: default;
+  color: inherit;
 }
 
 /* Grid opacity slider, between the "Key" title and the edit button */
@@ -96,10 +112,17 @@
   white-space: nowrap;
 }
 
-.keyTable input {
+/* [type='text'] so this beats the global `input[type='text'] { width: 100% }`, which would push the
+   Axis column's input (after its color chip) over the "− end" column. */
+.keyTable input[type='text'] {
   width: 80px;
   padding: 2px 5px;
   font-size: 12px;
+}
+
+.keyTable td + td,
+.keyTable th + th {
+  padding-left: 8px;
 }
 
 .chip {
@@ -144,4 +167,29 @@
   font-size: 12px;
   padding: 4px 12px;
   border-radius: 999px;
+}
+
+@media (max-width: 700px) {
+  .key {
+    min-width: 0;
+    padding: 6px 8px;
+  }
+
+  .pill {
+    min-height: 36px;
+    padding: 6px 14px;
+    font-size: 13px;
+  }
+
+  .keyTitle {
+    min-height: 32px;
+  }
+
+  .gridOpacity {
+    width: 72px;
+  }
+
+  .keyTable input[type='text'] {
+    width: 72px;
+  }
 }
